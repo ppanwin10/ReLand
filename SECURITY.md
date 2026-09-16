@@ -5,7 +5,7 @@
 Do not disclose suspected vulnerabilities in a public issue.
 
 After the public repository is available, use GitHub's private vulnerability
-reporting or open a private draft security advisory for `LandAI-dev/ReLand`.
+reporting or open a private draft security advisory for `ppanwin10/ReLand`.
 Include:
 
 - affected version/commit;

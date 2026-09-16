@@ -4,7 +4,7 @@ description: Runs the required post-feature ReLand review with the macOS host, i
 license: Apache-2.0
 compatibility: ReLand repository on macOS with Xcode, XcodeGen, tmux, and available iPhone and iPad simulators.
 metadata:
-  author: LandAI-dev
+  author: ppanwin10
   version: "1.0"
 ---
 

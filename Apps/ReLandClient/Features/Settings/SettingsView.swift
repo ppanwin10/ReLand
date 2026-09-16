@@ -132,7 +132,7 @@ struct SettingsView: View {
                         "Project documentation",
                         destination: URL(
                             string:
-                                "https://github.com/LandAI-dev/ReLand"
+                                "https://github.com/ppanwin10/ReLand"
                         )!
                     )
                 }
