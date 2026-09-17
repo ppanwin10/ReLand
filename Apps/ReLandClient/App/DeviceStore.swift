@@ -11,7 +11,7 @@ struct DeviceStore {
             UserDefaultsSettingsStore(),
         credentials: any CredentialStoring =
             KeychainSecretStore(
-                service: "com.landai.reland.device-credentials"
+                service: "com.ppanwin10.reland.device-credentials"
             )
     ) {
         self.settings = settings

@@ -31,6 +31,7 @@ targets:
         CFBundleDisplayName: ReLand
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
         NSBonjourServices:
           - _reland._tcp
         NSCameraUsageDescription: Scan a ReLand pairing code from your Mac.
@@ -49,7 +50,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.landai.reland
+        PRODUCT_BUNDLE_IDENTIFIER: com.ppanwin10.reland
         PRODUCT_NAME: ReLand
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -123,7 +124,7 @@ targets:
       - path: Tests/ReLandUITests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.landai.reland.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: com.ppanwin10.reland.uitests
         TEST_TARGET_NAME: ReLand
     configFiles:
       Debug: Config/Debug.xcconfig
