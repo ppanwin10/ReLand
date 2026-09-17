@@ -4,6 +4,10 @@ All notable user-visible changes will be documented here.
 
 ## Unreleased
 
+- Moved the iPhone and iPad app to a new publisher identity. The replacement
+  TestFlight app installs separately from the previous beta, so testers must
+  pair their Mac again.
+
 ## 1.0 Beta 2 - 2026-07-26
 
 - Published ReLand 1.0 (5) through TestFlight and the notarized

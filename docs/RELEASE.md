@@ -60,6 +60,12 @@ Connect keys, or notarization credentials.
 6. After approval, verify the public invitation on a non-admin Apple ID and
    update the Current public beta links above.
 
+The replacement personal-publisher app uses `com.ppanwin10.reland`. It is a
+separate install from the previous TestFlight app, and its Keychain pairing
+data does not migrate. Keep the existing public-beta link until the replacement
+build passes external beta review, then verify fresh pairing before publishing
+the new invitation.
+
 Current required-reason audit: the iOS target uses UserDefaults for ReLand
 preferences and declares `NSPrivacyAccessedAPICategoryUserDefaults` with
 reason `CA92.1`. Re-run this audit whenever dependencies or system APIs change.

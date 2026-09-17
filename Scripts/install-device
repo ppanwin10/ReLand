@@ -48,5 +48,4 @@ xcrun devicectl device install app \
   "$APP_PATH"
 xcrun devicectl device process launch \
   --device "$CORE_DEVICE_ID" \
-  com.landai.reland
-
+  com.ppanwin10.reland
