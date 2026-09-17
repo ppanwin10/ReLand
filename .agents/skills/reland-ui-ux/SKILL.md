@@ -4,7 +4,7 @@ description: Applies ReLand's user-centered Apple-platform UI and UX standards. 
 license: Apache-2.0
 compatibility: ReLand SwiftUI client and host applications targeting iOS, iPadOS, and macOS.
 metadata:
-  author: LandAI-dev
+  author: ppanwin10
   version: "1.0"
 ---
 

@@ -49,4 +49,4 @@ All notable user-visible changes will be documented here.
 - Removed release access to deterministic E2E credentials.
 
 [testflight-beta]: https://testflight.apple.com/join/vQqhuAdC
-[host-beta]: https://github.com/LandAI-dev/ReLand/releases/tag/v1.0.0-beta.2
+[host-beta]: https://github.com/ppanwin10/ReLand/releases/tag/v1.0.0-beta.2

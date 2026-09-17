@@ -4,7 +4,7 @@ description: Reviews ReLand pull requests and pre-PR diffs for high-confidence s
 license: Apache-2.0
 compatibility: ReLand repository with git, GitHub CLI, Xcode, XcodeGen, tmux, and the project test scripts.
 metadata:
-  author: LandAI-dev
+  author: ppanwin10
   version: "1.0"
 ---
 

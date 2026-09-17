@@ -156,4 +156,4 @@ components retain their own licenses; see
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 [testflight-beta]: https://testflight.apple.com/join/vQqhuAdC
-[host-beta]: https://github.com/LandAI-dev/ReLand/releases/tag/v1.0.0-beta.2
+[host-beta]: https://github.com/ppanwin10/ReLand/releases/tag/v1.0.0-beta.2
