@@ -49,6 +49,11 @@ they must never inject input into the contributor's actual desktop or capture
 personal screen content. Apple model/UI changes still require the Mac,
 iPhone, and iPad review described below.
 
+The deterministic Apple E2E executable uses its main port plus one for the
+desktop-only Windows fixture and plus two for a loopback-only reconnect
+control. Reconnect assertions keep the synthetic host offline until the test
+explicitly restores its listener; no production app includes that control.
+
 ## Change workflow
 
 1. Add a focused failing test.

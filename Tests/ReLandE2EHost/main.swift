@@ -47,7 +47,7 @@ private let windowsInputSink = RecordingInputSink()
 private let windowsConfiguration = RemoteHostConfiguration(
     hostID: "reland-windows-e2e-host",
     hostName: "ReLand Windows E2E Host",
-    port: try windowsFixturePort(after: port),
+    port: try fixturePort(after: port, offset: 1),
     credentials: [credential],
     hostPlatform: .windows
 )
@@ -55,8 +55,14 @@ private let windowsServer = RemoteHostServer(
     frameSource: DesktopOnlyFrameSource(),
     inputSink: windowsInputSink
 )
+private let delayedReconnect = try DelayedReconnectFixture(
+    server: server,
+    configuration: configuration,
+    controlPort: fixturePort(after: port, offset: 2)
+)
 
 server.onStateChange = { state in
+    delayedReconnect.hostStateChanged(state)
     switch state {
     case let .ready(activePort):
         print("RELAND_E2E_READY:\(activePort)")
@@ -82,7 +88,12 @@ windowsServer.onStateChange = { state in
     }
 }
 
-configureInputHandlers(inputSink, server: server, configuration: configuration)
+configureInputHandlers(
+    inputSink,
+    server: server,
+    configuration: configuration,
+    delayedReconnect: delayedReconnect
+)
 configureInputHandlers(
     windowsInputSink,
     server: windowsServer,
@@ -91,13 +102,15 @@ configureInputHandlers(
 
 server.start(configuration: configuration)
 windowsServer.start(configuration: windowsConfiguration)
+delayedReconnect.start()
 
 dispatchMain()
 
 private func configureInputHandlers(
     _ inputSink: RecordingInputSink,
     server: RemoteHostServer,
-    configuration: RemoteHostConfiguration
+    configuration: RemoteHostConfiguration,
+    delayedReconnect: DelayedReconnectFixture? = nil
 ) {
     inputSink.onEvent = { event, summary in
         print("RELAND_E2E_INPUT:\(summary)")
@@ -108,24 +121,28 @@ private func configureInputHandlers(
             }
         } else if case .text("__RELAND_DELAYED_DISCONNECT__") = event {
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
-                server.stop()
-                DispatchQueue.global().asyncAfter(
-                    deadline: .now() + 1.5
-                ) {
-                    server.start(configuration: configuration)
+                if let delayedReconnect {
+                    delayedReconnect.pause()
+                } else {
+                    server.stop()
+                    DispatchQueue.global().asyncAfter(
+                        deadline: .now() + 1.5
+                    ) {
+                        server.start(configuration: configuration)
+                    }
                 }
             }
         }
     }
 }
 
-private func windowsFixturePort(after port: UInt16) throws -> UInt16 {
-    guard port < UInt16.max else {
+private func fixturePort(after port: UInt16, offset: UInt16) throws -> UInt16 {
+    guard port <= UInt16.max - offset else {
         throw RemoteCaptureTargetSourceError.message(
-            "The E2E port leaves no port for the Windows fixture."
+            "The E2E port leaves no port for a companion fixture."
         )
     }
-    return port + 1
+    return port + offset
 }
 
 private final class DesktopOnlyFrameSource: RemoteFrameSource {

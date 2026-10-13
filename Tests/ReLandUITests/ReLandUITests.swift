@@ -1,3 +1,4 @@
+import Network
 import XCTest
 
 @MainActor
@@ -666,6 +667,9 @@ final class ReLandUITests: XCTestCase {
             "terminalDelayedReconnectTestButton",
             in: app
         )
+        defer {
+            resumePausedE2EHost()
+        }
         XCTAssertTrue(
             app.staticTexts["terminalConnectionStatus"]
                 .waitForExistence(timeout: 5)
@@ -922,6 +926,50 @@ final class ReLandUITests: XCTestCase {
         XCTAssertTrue(status.waitForExistence(timeout: 10))
         waitForLabel("Connected", element: status, timeout: 10)
         return app
+    }
+
+    private func resumePausedE2EHost() {
+        let resumed = expectation(description: "E2E host listener restored")
+        let connection = NWConnection(
+            host: "127.0.0.1",
+            port: 45457,
+            using: .tcp
+        )
+        defer {
+            connection.cancel()
+        }
+        connection.stateUpdateHandler = { state in
+            switch state {
+            case .ready:
+                connection.send(
+                    content: Data("resume".utf8),
+                    completion: .contentProcessed { error in
+                        if error != nil {
+                            XCTFail("The E2E resume request could not be sent.")
+                            resumed.fulfill()
+                            return
+                        }
+                        connection.receive(
+                            minimumIncompleteLength: 5,
+                            maximumLength: 5
+                        ) { data, _, _, error in
+                            XCTAssertNil(error)
+                            XCTAssertEqual(data, Data("ready".utf8))
+                            resumed.fulfill()
+                        }
+                    }
+                )
+            case .failed:
+                XCTFail("The E2E fixture control connection failed.")
+                resumed.fulfill()
+            default:
+                break
+            }
+        }
+        connection.start(queue: DispatchQueue(
+            label: "com.landai.reland.uitest-fixture-control"
+        ))
+        wait(for: [resumed], timeout: 10)
     }
 
     private func tapRemoteMoreControl(
