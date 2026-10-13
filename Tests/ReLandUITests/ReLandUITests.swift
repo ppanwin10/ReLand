@@ -60,6 +60,10 @@ final class ReLandUITests: XCTestCase {
     }
 
     func testWindowsDeviceOffersOnlySupportedDesktopActions() {
+        verifyWindowsDeviceActions()
+    }
+
+    private func verifyWindowsDeviceActions() {
         let app = XCUIApplication()
         app.launchArguments = ["--reland-windows-device-list-e2e"]
         app.launch()
@@ -76,6 +80,10 @@ final class ReLandUITests: XCTestCase {
     }
 
     func testWindowsSessionHidesMacServicesAndUsesWindowsKeyboardLabels() {
+        verifyWindowsSessionControls()
+    }
+
+    private func verifyWindowsSessionControls() {
         let app = launchE2EApplication(port: "45456")
         XCTAssertTrue(app.buttons["keyboardButton"].isHittable)
         XCTAssertTrue(app.buttons["moreButton"].isHittable)
@@ -129,6 +137,7 @@ final class ReLandUITests: XCTestCase {
             XCTAssertTrue(app.buttons[identifier].isHittable)
         }
         attachScreenshot(named: "Device actions")
+        verifyWindowsDeviceActions()
     }
 
     func testTerminalActionsSheetKeepsStableHierarchyWhileScrolling() {
@@ -662,6 +671,7 @@ final class ReLandUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         app.buttons["terminalSessionsButton"].tap()
+        XCTAssertFalse(app.alerts["ReLand"].exists)
         let more = app.buttons["terminalMoreButton-rl-e2e"]
         XCTAssertTrue(more.waitForExistence(timeout: 5))
         more.tap()
@@ -773,6 +783,7 @@ final class ReLandUITests: XCTestCase {
         )
 
         attachScreenshot(named: "App Mode direct touch")
+        verifyWindowsSessionControls()
     }
 
     func testExistingCopilotTerminalUX() throws {

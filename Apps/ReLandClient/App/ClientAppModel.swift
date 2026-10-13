@@ -309,6 +309,7 @@ final class ClientAppModel {
     private var reconnectTask: Task<Void, Never>?
     private var manualDisconnect = false
     private var openTerminalAfterConnect = false
+    private var refreshTerminalSessionsAfterReconnect = false
     private var pendingCaptureIntent: CaptureIntent?
     private var pendingCaptureCycleDirection:
         CaptureCycleDirection?
@@ -727,6 +728,7 @@ final class ClientAppModel {
         pendingTerminalOutput.removeAll()
         isTerminalOnlyMode = false
         openTerminalAfterConnect = false
+        refreshTerminalSessionsAfterReconnect = false
     }
 
     func remove(_ device: RemoteDevice) {
@@ -865,15 +867,25 @@ final class ClientAppModel {
         let shouldDisconnect = isTerminalOnlyMode
         detachTerminal()
         isTerminalWorkspacePresented = false
+        refreshTerminalSessionsAfterReconnect = false
         if shouldDisconnect {
             disconnect()
         }
     }
 
     func requestTerminalSessions() {
+        if !canUseRemoteSession,
+           supports(.terminal),
+           activeDevice != nil,
+           !manualDisconnect
+        {
+            refreshTerminalSessionsAfterReconnect = true
+            return
+        }
         guard requireCapability(.terminal) else {
             return
         }
+        refreshTerminalSessionsAfterReconnect = false
         session?.requestTerminalSessions()
     }
 
@@ -2042,6 +2054,7 @@ final class ClientAppModel {
                 isAppSwitcherVisible = false
             }
             if !supports(.terminal) {
+                refreshTerminalSessionsAfterReconnect = false
                 if openTerminalAfterConnect {
                     disconnect()
                     alertMessage = "Terminal sessions are not available on this computer."
@@ -2079,7 +2092,7 @@ final class ClientAppModel {
             if pendingCaptureIntent != nil {
                 requestCaptureTargets()
             }
-            if isTerminalWorkspacePresented {
+            if isTerminalWorkspacePresented || refreshTerminalSessionsAfterReconnect {
                 requestTerminalSessions()
             }
         case .waiting:
