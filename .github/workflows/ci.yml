@@ -14,26 +14,83 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  classify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      base_sha: ${{ steps.scope.outputs.base_sha }}
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+      head_sha: ${{ steps.scope.outputs.head_sha }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Classify changed files
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          base_sha="$BASE_SHA"
+          case "$base_sha" in
+            ""|0000000000000000000000000000000000000000)
+              base_sha=$(git rev-parse "$HEAD_SHA^")
+              ;;
+          esac
+          if ! git cat-file -e "$base_sha^{commit}" 2>/dev/null; then
+            base_sha=$(git rev-parse "$HEAD_SHA^")
+          fi
+
+          scope=$(
+            git diff --name-only "$base_sha" "$HEAD_SHA" |
+              ./Scripts/classify-ci-changes
+          )
+
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          if [ "$scope" = "docs-only" ]; then
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          fi
+
   verify:
-    runs-on: macos-15
+    needs: classify
+    runs-on: ${{ needs.classify.outputs.docs_only == 'true' && 'ubuntu-latest' || 'macos-15' }}
     timeout-minutes: 45
 
     steps:
       - name: Check out source
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
+      - name: Validate documentation-only change
+        if: needs.classify.outputs.docs_only == 'true'
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+        run: git diff --check "$BASE_SHA" "$HEAD_SHA"
+
       - name: Install build tools
+        if: needs.classify.outputs.docs_only != 'true'
         run: brew install xcodegen tmux
 
       - name: Run unit and integration tests
+        if: needs.classify.outputs.docs_only != 'true'
         run: ./Scripts/test-unit
 
       - name: Run iPhone and iPad simulator E2E
+        if: needs.classify.outputs.docs_only != 'true'
         run: ./Scripts/test-e2e-simulator
 
       - name: Scan Release builds
+        if: needs.classify.outputs.docs_only != 'true'
         run: ./Scripts/check-release-security
 
       - name: Reject committed local signing configuration

@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+saw_path=false
+
+while IFS= read -r path; do
+  [ -n "$path" ] || continue
+  saw_path=true
+
+  case "$path" in
+    *.md|docs/*|.gitignore|LICENSE|LICENSE.*|NOTICE|NOTICE.*)
+      ;;
+    *)
+      echo "full"
+      exit 0
+      ;;
+  esac
+done
+
+if [ "$saw_path" = true ]; then
+  echo "docs-only"
+else
+  echo "full"
+fi

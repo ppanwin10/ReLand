@@ -6,3 +6,4 @@ cd "$ROOT/Packages/ReLandCore"
 
 swift test
 "$ROOT/Tests/WorkflowSecurityPolicyTests.sh"
+"$ROOT/Tests/CIChangeScopeTests.sh"
