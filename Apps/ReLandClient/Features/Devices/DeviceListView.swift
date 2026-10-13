@@ -9,14 +9,14 @@ struct DeviceListView: View {
             Group {
                 if model.devices.isEmpty {
                     ContentUnavailableView {
-                        Label("No Macs yet", systemImage: "macbook")
+                        Label("No computers yet", systemImage: "desktopcomputer")
                     } description: {
                         Text(
                             "Pair this iPhone or iPad with "
                                 + "ReLand Host."
                         )
                     } actions: {
-                        Button("Add Mac") {
+                        Button("Add computer") {
                             model.isPairingSheetPresented = true
                         }
                         .buttonStyle(.borderedProminent)
@@ -62,7 +62,7 @@ struct DeviceListView: View {
                     Button {
                         model.isPairingSheetPresented = true
                     } label: {
-                        Label("Add Mac", systemImage: "plus")
+                        Label("Add computer", systemImage: "plus")
                     }
                 }
             }
@@ -87,15 +87,23 @@ private struct DeviceActionsView: View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
                 screenButton(compact: false)
-                appButton(compact: false)
-                terminalButton(compact: false)
+                if device.supports(.captureTargets) {
+                    appButton(compact: false)
+                }
+                if device.supports(.terminal) {
+                    terminalButton(compact: false)
+                }
                 settingsButton(compact: false)
             }
 
             HStack(spacing: 8) {
                 screenButton(compact: true)
-                appButton(compact: true)
-                terminalButton(compact: true)
+                if device.supports(.captureTargets) {
+                    appButton(compact: true)
+                }
+                if device.supports(.terminal) {
+                    terminalButton(compact: true)
+                }
                 settingsButton(compact: true)
             }
         }
@@ -175,6 +183,7 @@ private struct DeviceActionsView: View {
                 }
             }
                 .frame(
+                    minWidth: compact ? nil : 44,
                     maxWidth: compact ? .infinity : nil,
                     minHeight: compact ? 58 : 44
                 )
@@ -217,11 +226,12 @@ private struct DeviceRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: "macbook")
+            Image(systemName: device.hostPlatform == .windows ? "desktopcomputer" : "macbook")
                 .font(.title2)
                 .foregroundStyle(.tint)
                 .frame(width: 44, height: 44)
                 .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(device.name)

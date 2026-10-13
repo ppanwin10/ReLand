@@ -11,7 +11,7 @@ struct PairingView: View {
             Form {
                 Section {
                     Label(
-                        "Pair once while you are physically at your Mac.",
+                        "Pair once while you are physically at your computer.",
                         systemImage: "lock.shield"
                     )
                     Text(
@@ -46,7 +46,7 @@ struct PairingView: View {
                     }
                 }
             }
-            .navigationTitle("Add Mac")
+            .navigationTitle("Add computer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -80,7 +80,7 @@ struct PairingView: View {
             }
         }
         .alert(
-            "Pair with this Mac?",
+            "Pair with this computer?",
             isPresented: Binding(
                 get: { model.pendingPairingDescriptor != nil },
                 set: { isPresented in

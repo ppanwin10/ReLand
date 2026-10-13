@@ -4,6 +4,65 @@ import Testing
 
 struct SecurityTests {
     @Test
+    func decodesWindowsPairingPayloadWithDotNetCompatibleJSON() throws {
+        let json = """
+        {
+          "version":2,
+          "hostID":"00000000-0000-0000-0000-000000000001",
+          "hostName":"Test Windows PC",
+          "address":"192.168.1.20",
+          "port":45454,
+          "credential":{
+            "id":"windows-fixture-pairing",
+            "key":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+            "name":"Pairing",
+            "isPairingCredential":true
+          },
+          "expiresAt":2000000000,
+          "hostPlatform":"windows",
+          "capabilities":["screen","input","hostStatus"]
+        }
+        """
+        let payload = "reland-pair:v2:" + Data(json.utf8).base64URLEncodedString
+        let descriptor = try PairingDescriptor(
+            payload: payload,
+            now: Date(timeIntervalSince1970: 1_999_999_999)
+        )
+
+        #expect(descriptor.hostPlatform == .windows)
+        #expect(descriptor.capabilities == [.screen, .input, .hostStatus])
+        #expect(descriptor.credential.key == Data((0..<32).map(UInt8.init)))
+        #expect(descriptor.expiresAt == Date(timeIntervalSince1970: 2_000_000_000))
+        #expect(
+            try PairingDescriptor(
+                payload: descriptor.encodedPayload(),
+                now: Date(timeIntervalSince1970: 1_999_999_999)
+            ) == descriptor
+        )
+    }
+
+    @Test
+    func legacyV2PairingPayloadDefaultsToMac() throws {
+        let json = """
+        {
+          "version":2,"hostID":"legacy-host","hostName":"Test Mac",
+          "address":"192.168.1.20","port":45454,
+          "credential":{
+            "id":"legacy-pairing","name":"Pairing","isPairingCredential":true,
+            "key":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+          },
+          "expiresAt":2000000000
+        }
+        """
+        let descriptor = try PairingDescriptor(
+            payload: "reland-pair:v2:" + Data(json.utf8).base64URLEncodedString,
+            now: Date(timeIntervalSince1970: 1_999_999_999)
+        )
+        #expect(descriptor.hostPlatform == .macOS)
+        #expect(descriptor.capabilities == nil)
+    }
+
+    @Test
     func usesReLandBonjourService() {
         #expect(ReLandConstants.serviceType == "_reland._tcp")
     }

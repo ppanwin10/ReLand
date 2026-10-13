@@ -20,7 +20,7 @@ struct DeviceEditorView: View {
         NavigationStack {
             Form {
                 Section("Connection") {
-                    TextField("Hostname or IP address", text: $address)
+                    TextField("Private IP address", text: $address)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     TextField("Port", text: $port)
@@ -29,8 +29,8 @@ struct DeviceEditorView: View {
 
                 Section {
                     Text(
-                        "For remote access, enter the Mac's Tailscale "
-                            + "hostname or 100.x address."
+                        "Use your computer's private LAN address "
+                            + "or Tailscale 100.x address."
                     )
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -64,4 +64,3 @@ struct DeviceEditorView: View {
         .presentationDetents([.medium])
     }
 }
-

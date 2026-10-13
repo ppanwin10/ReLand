@@ -16,14 +16,14 @@ struct OnboardingView: View {
                         number: 1,
                         title: "Install ReLand Host",
                         detail:
-                            "Run ReLand Host on the Mac you own and want to control.",
+                            "Run ReLand Host on the Mac or Windows PC you own and want to control.",
                         systemImage: "macbook"
                     )
                     prerequisite(
                         number: 2,
-                        title: "Grant Mac permissions",
+                        title: "Prepare your computer",
                         detail:
-                            "Allow Screen Recording to view the Mac and Accessibility to control it.",
+                            "On Mac, allow Screen Recording and Accessibility. On Windows, keep the PC unlocked and ReLand Host running.",
                         systemImage: "lock.shield"
                     )
                     prerequisite(
@@ -37,7 +37,7 @@ struct OnboardingView: View {
                         number: 4,
                         title: "Scan the one-time QR",
                         detail:
-                            "Initial pairing requires physical access to the Mac. Confirm its name and private address.",
+                            "Initial pairing requires physical access to your computer. Confirm its name and private address.",
                         systemImage: "qrcode.viewfinder"
                     )
 
@@ -78,13 +78,13 @@ struct OnboardingView: View {
                 .foregroundStyle(ReLandTheme.accent)
                 .accessibilityHidden(true)
 
-            Text("Your Mac, back in reach")
+            Text("Your computer, back in reach")
                 .font(.largeTitle.bold())
                 .foregroundStyle(ReLandTheme.strongText)
 
             Text(
-                "Control your own Mac, continue terminal and AI CLI "
-                    + "sessions, and retrieve files from iPhone or iPad."
+                "Control your Mac or Windows PC from iPhone or iPad. "
+                    + "Mac hosts also support terminal and AI CLI sessions and files."
             )
             .font(.title3)
             .foregroundStyle(ReLandTheme.mutedText)

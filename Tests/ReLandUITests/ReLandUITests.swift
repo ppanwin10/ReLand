@@ -8,7 +8,7 @@ final class ReLandUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.staticTexts["Your Mac, back in reach"]
+            app.staticTexts["Your computer, back in reach"]
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.staticTexts["No ReLand cloud relay"].exists)
@@ -56,7 +56,60 @@ final class ReLandUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.navigationBars["ReLand"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Add Mac"].exists)
+        XCTAssertTrue(app.buttons["Add computer"].exists)
+    }
+
+    func testWindowsDeviceOffersOnlySupportedDesktopActions() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--reland-windows-device-list-e2e"]
+        app.launch()
+
+        XCTAssertTrue(
+            app.staticTexts["Example Windows PC"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["deviceScreenButton"].isHittable)
+        XCTAssertFalse(app.buttons["deviceAppButton"].exists)
+        XCTAssertFalse(app.buttons["deviceTerminalButton"].exists)
+        XCTAssertTrue(app.buttons["Add computer"].exists)
+        attachScreenshot(named: "Windows device actions")
+    }
+
+    func testWindowsSessionHidesMacServicesAndUsesWindowsKeyboardLabels() {
+        let app = launchE2EApplication(port: "45456")
+        XCTAssertTrue(app.buttons["keyboardButton"].isHittable)
+        XCTAssertTrue(app.buttons["moreButton"].isHittable)
+        XCTAssertFalse(app.buttons["appsButton"].exists)
+        XCTAssertFalse(app.buttons["terminalButton"].exists)
+        XCTAssertFalse(app.buttons["filesButton"].exists)
+        attachScreenshot(named: "Windows desktop controls")
+
+        app.buttons["keyboardButton"].tap()
+        XCTAssertTrue(app.buttons["Windows"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Alt"].exists)
+        XCTAssertTrue(app.buttons["Control"].exists)
+        XCTAssertFalse(app.buttons["Command"].exists)
+        attachScreenshot(named: "Windows keyboard controls")
+        app.navigationBars["Keyboard"].buttons["Cancel"].tap()
+
+        let acknowledgement = app.staticTexts["lastInputAck"]
+        let canvas = app.otherElements["remoteCanvas"]
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        waitForLabelChange(from: "No input sent", element: acknowledgement, timeout: 5)
+        tapRemoteMoreControl("reconnectTestButton", in: app)
+        waitForLabelChange(
+            from: "Connected",
+            element: app.staticTexts["connectionStatus"],
+            timeout: 10
+        )
+        waitForLabel(
+            "Connected",
+            element: app.staticTexts["connectionStatus"],
+            timeout: 10
+        )
+        XCTAssertFalse(app.buttons["appsButton"].exists)
+        XCTAssertFalse(app.buttons["terminalButton"].exists)
+        XCTAssertFalse(app.buttons["filesButton"].exists)
     }
 
     func testDeviceActionsAdaptOnPhone() {
@@ -842,7 +895,7 @@ final class ReLandUITests: XCTestCase {
         attachScreenshot(named: "Live Chrome after tap")
     }
 
-    private func launchE2EApplication() -> XCUIApplication {
+    private func launchE2EApplication(port: String = "45455") -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = [
@@ -850,7 +903,7 @@ final class ReLandUITests: XCTestCase {
             "--e2e-host",
             "127.0.0.1",
             "--e2e-port",
-            "45455",
+            port,
         ]
         app.launch()
 

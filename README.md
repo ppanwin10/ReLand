@@ -4,10 +4,11 @@
 
 # ReLand
 
-ReLand is a private remote workspace for your own Mac. From an iPhone or
-iPad, you can view and control the Mac screen or a selected app, continue
-persistent terminal and AI CLI sessions, and retrieve session artifacts or
-approved files.
+ReLand is a private remote workspace for your own computer. From an iPhone or
+iPad, you can view and control a Mac screen or selected app, continue
+persistent Mac terminal and AI CLI sessions, and retrieve session artifacts or
+approved files. An experimental Windows host adds primary-screen viewing and
+mouse/keyboard control; see [Windows host setup](docs/WINDOWS_HOST.md).
 
 ReLand does not operate a cloud relay and does not receive your screen,
 terminal content, prompts, or files. Connections use your trusted local
@@ -43,6 +44,8 @@ QR code.
 
 - **ReLand** — iOS/iPadOS client.
 - **ReLand Host** — macOS capture, input, terminal, and file service.
+- **ReLand Windows Host** — source-built Windows desktop capture and input
+  preview, using the same secure pairing and protocol.
 - **ReLand AI** — session wrapper:
   - `reland-ai copilot`
   - `reland-ai claude`
@@ -59,6 +62,9 @@ vector master is in `Design/ReLandIcon.svg`; run
 `./Scripts/generate-icons.swift` to regenerate all opaque app-icon assets.
 
 ## Prerequisites
+
+These prerequisites and build commands apply to the Mac host and Apple client.
+Windows prerequisites and commands are in [Windows host setup](docs/WINDOWS_HOST.md).
 
 - macOS 15 or later.
 - iOS/iPadOS 18 or later.
@@ -90,13 +96,16 @@ The generated `ReLand.xcodeproj` is intentionally ignored. Change
 
 ## Pairing and network safety
 
-- Initial pairing requires physical access to the Mac and its one-time QR.
+- Initial pairing requires physical access to the computer and its one-time QR.
 - Pairing codes expire after ten minutes and are consumed once.
 - ReLand accepts private LAN, link-local, loopback, IPv6 ULA, and Tailscale
   CGNAT addresses. It rejects public destination addresses.
-- ReLand Host should never be exposed directly to the public internet.
+- Neither host should ever be exposed directly to the public internet.
 - The Mac must be unlocked for app interaction. ReLand does not bypass the
   macOS login screen or system permission prompts.
+- The Windows PC must be unlocked. The Windows preview does not control the
+  login screen, secure system prompts, or elevated apps and refuses to run as
+  administrator.
 
 ## Session files
 

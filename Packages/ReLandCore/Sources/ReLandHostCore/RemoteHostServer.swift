@@ -180,7 +180,8 @@ public final class RemoteHostServer: @unchecked Sendable {
                 hostID: configuration.hostID,
                 hostName: configuration.hostName,
                 port: configuration.port,
-                credentials: credentials
+                credentials: credentials,
+                hostPlatform: configuration.hostPlatform
             )
             startOnQueue(configuration: configuration)
         }
@@ -476,14 +477,17 @@ public final class RemoteHostServer: @unchecked Sendable {
                 }
                 let accepted = PairDeviceAccepted(
                     hostID: configuration.hostID,
-                    hostName: configuration.hostName
+                    hostName: configuration.hostName,
+                    hostPlatform: configuration.hostPlatform,
+                    capabilities: availableCapabilities
                 )
                 let acceptedPayload = try WireJSON.encode(accepted)
                 let updatedConfiguration = RemoteHostConfiguration(
                     hostID: configuration.hostID,
                     hostName: configuration.hostName,
                     port: configuration.port,
-                    credentials: Array(credentialsByID.values)
+                    credentials: Array(credentialsByID.values),
+                    hostPlatform: configuration.hostPlatform
                 )
                 startOnQueue(
                     configuration: updatedConfiguration
@@ -554,6 +558,9 @@ public final class RemoteHostServer: @unchecked Sendable {
 
     private func activate(_ context: ClientContext) {
         do {
+            guard let configuration else {
+                throw HostServerError.invalidConfiguration
+            }
             guard
                 let protocolVersion =
                     context.negotiatedProtocolVersion
@@ -572,7 +579,9 @@ public final class RemoteHostServer: @unchecked Sendable {
                             capabilities:
                                 context.negotiatedCapabilities,
                             hostPermissions:
-                                permissionStateProvider()
+                                permissionStateProvider(),
+                            hostPlatform:
+                                configuration.hostPlatform
                         )
                     )
                 )

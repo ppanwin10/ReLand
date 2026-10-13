@@ -62,16 +62,19 @@ public struct RemoteHostConfiguration: Sendable {
     public let hostName: String
     public let port: UInt16
     public let credentials: [PSKCredential]
+    public let hostPlatform: RemoteHostPlatform
 
     public init(
         hostID: String,
         hostName: String,
         port: UInt16 = ReLandConstants.defaultPort,
-        credentials: [PSKCredential]
+        credentials: [PSKCredential],
+        hostPlatform: RemoteHostPlatform = .macOS
     ) {
         self.hostID = hostID
         self.hostName = hostName
         self.port = port
         self.credentials = credentials
+        self.hostPlatform = hostPlatform
     }
 }

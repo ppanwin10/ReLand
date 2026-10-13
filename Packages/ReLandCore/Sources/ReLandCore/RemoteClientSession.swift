@@ -659,7 +659,7 @@ public final class RemoteClientSession: @unchecked Sendable {
                 return
             }
             if Date().timeIntervalSince(lastPongAt) > 15 {
-                transition(to: .failed("The Mac stopped responding"))
+                transition(to: .failed("The computer stopped responding"))
                 connection?.cancel()
                 return
             }

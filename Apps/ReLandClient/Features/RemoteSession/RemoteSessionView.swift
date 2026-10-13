@@ -45,12 +45,13 @@ struct RemoteSessionView: View {
                 send: model.send
             )
             .accessibilityIdentifier("remoteCanvas")
-            .accessibilityLabel("Remote Mac canvas")
+            .accessibilityLabel("Remote \(model.hostPlatform.displayName) canvas")
             .accessibilityHint(
                 model.isAppMode
                     ? "Use three fingers horizontally to switch recent Mac windows."
                     : "Use one finger for the pointer and two fingers to scroll."
             )
+            .allowsHitTesting(model.canSendRemoteInput)
 
             VStack {
                 statusPill
@@ -103,12 +104,14 @@ struct RemoteSessionView: View {
                                 Button {
                                     model.toggle(modifier)
                                 } label: {
-                                    Label(
-                                        modifier.title,
-                                        systemImage: modifier.symbol
-                                    )
-                                    .labelStyle(.iconOnly)
-                                    .frame(maxWidth: .infinity)
+                                    Group {
+                                        if model.hostPlatform == .windows {
+                                            Text(modifier.windowsLabel)
+                                        } else {
+                                            Image(systemName: modifier.symbol)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, minHeight: 44)
                                 }
                                 .buttonStyle(.bordered)
                                 .tint(
@@ -116,7 +119,8 @@ struct RemoteSessionView: View {
                                         ? ReLandTheme.accent
                                         : .secondary
                                 )
-                                .accessibilityLabel(modifier.title)
+                                .accessibilityLabel(modifier.title(for: model.hostPlatform))
+                                .disabled(!model.canSendRemoteInput)
                             }
                         }
                     }
@@ -146,11 +150,12 @@ struct RemoteSessionView: View {
                     .lineLimit(3...8)
 
                     Button("Send") {
-                        model.sendText(textToSend)
-                        textToSend = ""
-                        isKeyboardPresented = false
+                        if model.sendText(textToSend) {
+                            textToSend = ""
+                            isKeyboardPresented = false
+                        }
                     }
-                    .disabled(textToSend.isEmpty)
+                    .disabled(textToSend.isEmpty || !model.canSendRemoteInput)
                     .accessibilityIdentifier("sendTextButton")
                     }
                 }
@@ -186,7 +191,7 @@ struct RemoteSessionView: View {
             remotePointer = CGPoint(x: 0.5, y: 0.5)
         }
         .alert(
-            "Mac already in use",
+            "\(model.hostPlatform.displayName) already in use",
             isPresented:
                 $model.isControllerTakeoverConfirmationPresented
         ) {
@@ -198,7 +203,7 @@ struct RemoteSessionView: View {
             }
         } message: {
             Text(
-                "Another paired device is controlling this Mac. "
+                "Another paired device is controlling this \(model.hostPlatform.displayName). "
                     + "Taking over will disconnect that device."
             )
         }
@@ -217,10 +222,12 @@ struct RemoteSessionView: View {
                             "Pinch: zoom the remote view",
                             systemImage: "arrow.up.left.and.arrow.down.right"
                         )
-                        Label(
-                            "Three fingers: switch recent app windows",
-                            systemImage: "rectangle.3.group"
-                        )
+                        if model.supports(.captureTargets) {
+                            Label(
+                                "Three fingers: switch recent app windows",
+                                systemImage: "rectangle.3.group"
+                            )
+                        }
                         Label(
                             "Long press or two-finger tap: right click",
                             systemImage: "cursorarrow.click.2"
@@ -238,7 +245,7 @@ struct RemoteSessionView: View {
             .presentationDetents([.medium])
         }
         .confirmationDialog(
-            "Disconnect from this Mac?",
+            "Disconnect from this \(model.hostPlatform.displayName)?",
             isPresented: $isDisconnectConfirmationPresented,
             titleVisibility: .visible
         ) {
@@ -369,10 +376,13 @@ struct RemoteSessionView: View {
 
     private var hostAttentionTitle: String {
         guard let state = model.hostPermissionState else {
-            return "Mac needs attention"
+            return "\(model.hostPlatform.displayName) needs attention"
         }
         if !state.sessionUnlocked {
-            return "Mac is locked"
+            return "\(model.hostPlatform.displayName) is locked"
+        }
+        if model.hostPlatform == .windows {
+            return "Windows needs attention"
         }
         if !state.screenRecordingGranted {
             return "Screen Recording is required"
@@ -382,10 +392,12 @@ struct RemoteSessionView: View {
 
     @ViewBuilder
     private var hostAttentionActions: some View {
-        Button("Open Mac Screen") {
-            model.openMacScreenForPermission()
+        if model.supports(.captureTargets) {
+            Button("Open Mac Screen") {
+                model.openMacScreenForPermission()
+            }
+            .buttonStyle(.borderedProminent)
         }
-        .buttonStyle(.borderedProminent)
 
         Button("Retry") {
             model.requestHostStatus()
@@ -396,6 +408,10 @@ struct RemoteSessionView: View {
     private var hostAttentionDetail: String {
         guard let state = model.hostPermissionState else {
             return ""
+        }
+        if model.hostPlatform == .windows {
+            return "Unlock the PC or dismiss its system prompt locally, then retry. "
+                + "ReLand cannot control the Windows login screen or elevated apps."
         }
         if !state.sessionUnlocked {
             return "Unlock the Mac locally before sending input."
@@ -447,7 +463,7 @@ struct RemoteSessionView: View {
                             height: proxy.size.height
                         )
                         .accessibilityLabel(
-                            "Waiting for the Mac display"
+                            "Waiting for the \(model.hostPlatform.displayName) display"
                         )
                 }
             }
@@ -574,14 +590,17 @@ struct RemoteSessionView: View {
                 ) {
                     isDisconnectConfirmationPresented = true
                 }
-                dockButton(
-                    title: "Apps",
-                    accessibilityTitle: "Mac apps",
-                    systemImage: "macwindow",
-                    identifier: "appsButton",
-                    isActive: model.isAppMode,
-                    action: model.openCaptureTargetPicker
-                )
+                if model.supports(.captureTargets) {
+                    dockButton(
+                        title: "Apps",
+                        accessibilityTitle: "Mac apps",
+                        systemImage: "macwindow",
+                        identifier: "appsButton",
+                        isActive: model.isAppMode,
+                        action: model.openCaptureTargetPicker
+                    )
+                    .disabled(model.connectionState != .connected)
+                }
                 dockButton(
                     title: "Keys",
                     accessibilityTitle: "Keyboard",
@@ -590,20 +609,27 @@ struct RemoteSessionView: View {
                 ) {
                     isKeyboardPresented = true
                 }
-                dockButton(
-                    title: "Terminal",
-                    accessibilityTitle: "Terminal sessions",
-                    systemImage: "terminal",
-                    identifier: "terminalButton",
-                    action: model.openTerminalWorkspace
-                )
-                dockButton(
-                    title: "Files",
-                    accessibilityTitle: "Mac files",
-                    systemImage: "folder",
-                    identifier: "filesButton",
-                    action: model.openRemoteFileBrowser
-                )
+                .disabled(!model.canSendRemoteInput)
+                if model.supports(.terminal) {
+                    dockButton(
+                        title: "Terminal",
+                        accessibilityTitle: "Terminal sessions",
+                        systemImage: "terminal",
+                        identifier: "terminalButton",
+                        action: model.openTerminalWorkspace
+                    )
+                    .disabled(model.connectionState != .connected)
+                }
+                if model.supports(.files) {
+                    dockButton(
+                        title: "Files",
+                        accessibilityTitle: "Mac files",
+                        systemImage: "folder",
+                        identifier: "filesButton",
+                        action: model.openRemoteFileBrowser
+                    )
+                    .disabled(model.connectionState != .connected)
+                }
                 moreMenu
             }
             .padding(8)
@@ -675,6 +701,7 @@ struct RemoteSessionView: View {
                 )
             }
             .accessibilityIdentifier("rightClickButton")
+            .disabled(!model.canSendRemoteInput)
 
             Button {
                 model.send(.scroll(x: 0, y: -120))
@@ -682,6 +709,7 @@ struct RemoteSessionView: View {
                 Label("Scroll down", systemImage: "arrow.down")
             }
             .accessibilityIdentifier("scrollButton")
+            .disabled(!model.canSendRemoteInput)
 
             if zoomScale > 1.01 {
                 Button {
@@ -845,9 +873,10 @@ struct RemoteSessionView: View {
                         .font(.caption.bold())
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 36)
+            .frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.bordered)
         .accessibilityLabel(title)
+        .disabled(!model.canSendRemoteInput)
     }
 }

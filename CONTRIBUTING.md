@@ -25,9 +25,29 @@ generated project changes.
 - `Packages/ReLandCore/Sources/ReLandHostCore` — host capture, input,
   terminal, file, and server services.
 - `Tests/ReLandE2EHost` / `Tests/ReLandUITests` — deterministic UI tests.
+- `Apps/ReLandWindowsHost` — native Windows UI, desktop capture/input, and
+  current-user protected credential storage.
+- `Packages/ReLandWindowsCore` — Windows host protocol, TLS-PSK, pairing,
+  private-network policy, and controller coordination.
+- `Tests/ReLandWindowsTests` — Windows protocol/integration, storage, and
+  native input-planning tests.
+- `Tests/ReLandWindowsUiReview` — synthetic host-window review helper, run on
+  a separate noninteractive Windows desktop by the Windows test suite.
 
 Keep dependencies directed from apps to packages and from `ReLandHostCore` to
 `ReLandCore`.
+The Windows app depends on `ReLandWindowsCore`; its transport and models must
+remain compatible with the shared Swift wire contract rather than changing
+the Apple package manifests. Run the Windows checks with:
+
+```powershell
+dotnet test Tests\ReLandWindowsTests\ReLandWindowsTests.csproj
+```
+
+Windows tests use synthetic desktop/input services and loopback TLS sessions;
+they must never inject input into the contributor's actual desktop or capture
+personal screen content. Apple model/UI changes still require the Mac,
+iPhone, and iPad review described below.
 
 ## Change workflow
 
