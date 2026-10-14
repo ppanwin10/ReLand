@@ -3,14 +3,16 @@
 ## Current public beta
 
 - **iPhone and iPad:** ReLand 1.0 (5) is available through
-  [TestFlight][testflight-beta].
+  the personal-publisher [TestFlight beta][testflight-beta].
 - **Mac companion:** Download the notarized
   [ReLand Host 1.0 Beta 2][host-beta].
+- **Windows companion:** Build the experimental preview from the
+  [Windows host guide](WINDOWS_HOST.md), including its Apple TLS pairing fix.
 
-Install both apps, open ReLand Host on the Mac, grant the requested macOS
-permissions, and pair the phone or tablet using the one-time QR code. The
-TestFlight invitation remains subject to Apple's availability and tester
-capacity.
+Install the client and the host for your computer. On Mac, grant the requested
+macOS permissions; on Windows, keep the PC unlocked. Pair the phone or tablet
+using the one-time QR code. The TestFlight invitation remains subject to
+Apple's availability and tester capacity.
 
 ## Required checks
 
@@ -87,5 +89,5 @@ automated publishing must be introduced as a separately reviewed policy change
 with a protected GitHub environment, narrowly scoped credentials, and an
 updated trusted workflow ruleset.
 
-[testflight-beta]: https://testflight.apple.com/join/vQqhuAdC
+[testflight-beta]: https://testflight.apple.com/join/nBusra3m
 [host-beta]: https://github.com/ppanwin10/ReLand/releases/tag/v1.0.0-beta.2

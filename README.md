@@ -29,10 +29,12 @@ the gesture guide live under **More**.
 
 - **iPhone and iPad:** [Join ReLand 1.0 on TestFlight][testflight-beta].
 - **Mac:** [Download the notarized ReLand Host 1.0 Beta 2][host-beta].
+- **Windows PC:** [Build the experimental Windows host](docs/WINDOWS_HOST.md).
 
-Install both apps, grant ReLand Host the requested Screen Recording and
-Accessibility permissions, then pair the phone or tablet using the one-time
-QR code.
+Install ReLand on your phone or tablet and the appropriate host on your
+computer. On Mac, grant Screen Recording and Accessibility permissions. On
+Windows, keep the PC unlocked and use the updated host preview. Pair using
+the one-time QR code.
 
 ## App preview
 
@@ -164,5 +166,5 @@ ReLand is licensed under the [Apache License 2.0](LICENSE). Third-party
 components retain their own licenses; see
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-[testflight-beta]: https://testflight.apple.com/join/vQqhuAdC
+[testflight-beta]: https://testflight.apple.com/join/nBusra3m
 [host-beta]: https://github.com/ppanwin10/ReLand/releases/tag/v1.0.0-beta.2
