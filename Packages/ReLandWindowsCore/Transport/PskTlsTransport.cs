@@ -30,6 +30,9 @@ internal sealed class PskTlsTransport(CredentialRegistry credentials)
 
     protected override bool PreferLocalCipherSuites() => true;
 
+    // PSK authentication has no certificate for an OCSP status response.
+    protected override bool AllowCertificateStatus() => false;
+
     public override TlsPskExternal? GetExternalPsk(IList<PskIdentity> identities)
     {
         if (identities.Count > 16)

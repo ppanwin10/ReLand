@@ -54,7 +54,7 @@ struct RemoteSessionView: View {
             .allowsHitTesting(model.canSendRemoteInput)
 
             VStack {
-                statusPill
+                RemoteSessionStatusPill(model: model, zoomScale: zoomScale)
                 if needsHostAttention {
                     hostAttentionBanner
                 }
@@ -478,53 +478,6 @@ struct RemoteSessionView: View {
         .clipped()
     }
 
-    private var statusPill: some View {
-        HStack(spacing: 10) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 9, height: 9)
-                .accessibilityHidden(true)
-
-            Text(model.connectionState.title)
-                .font(.subheadline.weight(.semibold))
-                .accessibilityIdentifier("connectionStatus")
-
-            if let target = model.selectedCaptureTarget {
-                Divider()
-                    .frame(height: 16)
-                Text(target.kind == .window ? target.applicationName : "Screen")
-                    .font(.caption.weight(.semibold))
-                    .lineLimit(1)
-                    .accessibilityIdentifier("captureTargetStatus")
-            }
-
-            Divider()
-                .frame(height: 16)
-
-            Text("Frames \(model.frameCount)")
-                .font(.caption.monospacedDigit())
-                .accessibilityIdentifier("frameCount")
-
-            Divider()
-                .frame(height: 16)
-
-            Text(
-                "Zoom \(zoomScale, format: .number.precision(.fractionLength(1)))×"
-            )
-            .font(.caption.monospacedDigit())
-            .accessibilityIdentifier("zoomStatus")
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(ReLandTheme.terminalOverlay, in: Capsule())
-        .overlay {
-            Capsule()
-                .stroke(.white.opacity(0.24), lineWidth: 1)
-        }
-        .accessibilityElement(children: .contain)
-    }
-
     private func pointerPosition(in size: CGSize) -> CGPoint {
         let bounds = CGRect(origin: .zero, size: size)
         let contentFrame = fittedContentFrame(in: bounds)
@@ -794,19 +747,6 @@ struct RemoteSessionView: View {
         }
     }
 
-    private var statusColor: Color {
-        switch model.connectionState {
-        case .connected:
-            .green
-        case .failed:
-            .red
-        case .idle:
-            .gray
-        case .connecting, .authenticating, .pairing, .reconnecting:
-            .orange
-        }
-    }
-
     private var contentAspectRatio: CGFloat? {
         guard
             let information = model.displayInformation,
@@ -816,6 +756,7 @@ struct RemoteSessionView: View {
                 $0.size.width / max($0.size.height, 1)
             }
         }
+
         return CGFloat(information.width)
             / CGFloat(information.height)
     }
@@ -878,5 +819,70 @@ struct RemoteSessionView: View {
         .buttonStyle(.bordered)
         .accessibilityLabel(title)
         .disabled(!model.canSendRemoteInput)
+    }
+}
+
+private struct RemoteSessionStatusPill: View {
+    @Bindable var model: ClientAppModel
+    let zoomScale: CGFloat
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(statusColor)
+                .frame(width: 9, height: 9)
+                .accessibilityHidden(true)
+
+            Text(model.connectionState.title)
+                .font(.subheadline.weight(.semibold))
+                .accessibilityIdentifier("connectionStatus")
+
+            if let target = model.selectedCaptureTarget {
+                Divider()
+                    .frame(height: 16)
+                Text(target.kind == .window ? target.applicationName : "Screen")
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                    .accessibilityIdentifier("captureTargetStatus")
+            }
+
+            Divider()
+                .frame(height: 16)
+
+            Text("Frames \(model.frameCount)")
+                .font(.caption.monospacedDigit())
+                .accessibilityIdentifier("frameCount")
+
+            Divider()
+                .frame(height: 16)
+
+            Text(
+                "Zoom \(zoomScale, format: .number.precision(.fractionLength(1)))×"
+            )
+            .font(.caption.monospacedDigit())
+            .accessibilityIdentifier("zoomStatus")
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(ReLandTheme.terminalOverlay, in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(.white.opacity(0.24), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var statusColor: Color {
+        switch model.connectionState {
+        case .connected:
+            .green
+        case .failed:
+            .red
+        case .idle:
+            .gray
+        case .connecting, .authenticating, .pairing, .reconnecting:
+            .orange
+        }
     }
 }

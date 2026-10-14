@@ -74,6 +74,8 @@ final class ReLandUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.buttons["deviceScreenButton"].isHittable)
+        XCTAssertGreaterThanOrEqual(app.buttons["deviceScreenButton"].frame.width, 44)
+        XCTAssertGreaterThanOrEqual(app.buttons["deviceScreenButton"].frame.height, 44)
         XCTAssertFalse(app.buttons["deviceAppButton"].exists)
         XCTAssertFalse(app.buttons["deviceTerminalButton"].exists)
         XCTAssertTrue(app.buttons["Add computer"].exists)
@@ -91,26 +93,45 @@ final class ReLandUITests: XCTestCase {
         XCTAssertFalse(app.buttons["appsButton"].exists)
         XCTAssertFalse(app.buttons["terminalButton"].exists)
         XCTAssertFalse(app.buttons["filesButton"].exists)
+        waitForDynamicLabel("frameCount", in: app, timeout: 5) { label in
+            label.split(separator: " ").last.flatMap { Int($0) }.map { $0 > 0 } == true
+        }
         attachScreenshot(named: "Windows desktop controls")
 
+        let acknowledgement = app.staticTexts["lastInputAck"]
+        let beforeShortcut = acknowledgement.label
         app.buttons["keyboardButton"].tap()
         XCTAssertTrue(app.buttons["Windows"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Alt"].exists)
         XCTAssertTrue(app.buttons["Control"].exists)
         XCTAssertFalse(app.buttons["Command"].exists)
+        for label in ["Windows", "Alt", "Control", "Shift"] {
+            XCTAssertGreaterThanOrEqual(app.buttons[label].frame.width, 44)
+            XCTAssertGreaterThanOrEqual(app.buttons[label].frame.height, 44)
+        }
         attachScreenshot(named: "Windows keyboard controls")
-        app.navigationBars["Keyboard"].buttons["Cancel"].tap()
 
-        let acknowledgement = app.staticTexts["lastInputAck"]
+        app.buttons["Control"].tap()
+        let textField = revealRemoteTextField(in: app)
+        textField.tap()
+        textField.typeText("a")
+        app.buttons["sendTextButton"].tap()
+        XCTAssertTrue(app.navigationBars["Keyboard"].waitForNonExistence(timeout: 5))
+        waitForLabelChange(from: beforeShortcut, element: acknowledgement, timeout: 5)
+        waitForLabelContaining("key", element: acknowledgement, timeout: 5)
+
         let canvas = app.otherElements["remoteCanvas"]
+        let beforePointer = acknowledgement.label
         canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        waitForLabelChange(from: "No input sent", element: acknowledgement, timeout: 5)
+        waitForLabelChange(from: beforePointer, element: acknowledgement, timeout: 5)
         tapRemoteMoreControl("reconnectTestButton", in: app)
+        defer { resumePausedE2EHost(port: 45458) }
         waitForLabelChange(
             from: "Connected",
             element: app.staticTexts["connectionStatus"],
             timeout: 10
         )
+        resumePausedE2EHost(port: 45458)
         waitForLabel(
             "Connected",
             element: app.staticTexts["connectionStatus"],
@@ -314,8 +335,7 @@ final class ReLandUITests: XCTestCase {
         )
 
         app.buttons["keyboardButton"].tap()
-        let textField = app.textFields["remoteTextField"]
-        XCTAssertTrue(textField.waitForExistence(timeout: 5))
+        let textField = revealRemoteTextField(in: app)
         textField.tap()
         textField.typeText("hello from simulator")
         app.buttons["sendTextButton"].tap()
@@ -347,9 +367,7 @@ final class ReLandUITests: XCTestCase {
         XCTAssertTrue(
             app.buttons["terminalActionSessionFilesButton"].exists
         )
-        XCTAssertTrue(
-            app.buttons["terminalActionMacFilesButton"].exists
-        )
+        revealTerminalAction("terminalActionMacFilesButton", in: app)
 
         let renameAction = app.buttons[
             "terminalActionRenameButton"
@@ -463,15 +481,17 @@ final class ReLandUITests: XCTestCase {
             .replacingOccurrences(of: "grid ", with: "")
 
         tapTerminalOption(
-            "terminalReconnectTestButton",
+            "terminalDelayedReconnectTestButton",
             in: app
         )
+        defer { resumePausedE2EHost() }
         let terminalConnectionStatus = app.staticTexts[
             "terminalConnectionStatus"
         ]
         XCTAssertTrue(
             terminalConnectionStatus.waitForExistence(timeout: 5)
         )
+        resumePausedE2EHost()
         XCTAssertTrue(
             terminalConnectionStatus.waitForNonExistence(timeout: 10)
         )
@@ -686,8 +706,7 @@ final class ReLandUITests: XCTestCase {
             "terminalActionMacFilesButton",
             "terminalActionStopButton",
         ] {
-            let action = app.buttons[identifier]
-            XCTAssertTrue(action.waitForExistence(timeout: 5))
+            let action = revealTerminalAction(identifier, in: app)
             XCTAssertFalse(action.isEnabled)
         }
     }
@@ -928,11 +947,11 @@ final class ReLandUITests: XCTestCase {
         return app
     }
 
-    private func resumePausedE2EHost() {
+    private func resumePausedE2EHost(port: NWEndpoint.Port = 45457) {
         let resumed = expectation(description: "E2E host listener restored")
         let connection = NWConnection(
             host: "127.0.0.1",
-            port: 45457,
+            port: port,
             using: .tcp
         )
         defer {
@@ -981,11 +1000,7 @@ final class ReLandUITests: XCTestCase {
             identifier: identifier
         ).firstMatch
         XCTAssertTrue(control.waitForExistence(timeout: 5))
-        Thread.sleep(forTimeInterval: 0.35)
-        control.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
-        )
-        .tap()
+        control.tap()
     }
 
     private func tapTerminalOption(
@@ -997,11 +1012,30 @@ final class ReLandUITests: XCTestCase {
             identifier: identifier
         ).firstMatch
         XCTAssertTrue(option.waitForExistence(timeout: 5))
-        Thread.sleep(forTimeInterval: 0.35)
-        option.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
-        )
-        .tap()
+        option.tap()
+    }
+
+    private func revealRemoteTextField(in app: XCUIApplication) -> XCUIElement {
+        let field = app.textFields["remoteTextField"]
+        for _ in 0..<4 where !field.exists || !field.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        XCTAssertTrue(field.isHittable)
+        return field
+    }
+
+    @discardableResult
+    private func revealTerminalAction(
+        _ identifier: String,
+        in app: XCUIApplication
+    ) -> XCUIElement {
+        let action = app.buttons[identifier]
+        for _ in 0..<4 where !action.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        return action
     }
 
     private func waitForTerminalList(in app: XCUIApplication) {

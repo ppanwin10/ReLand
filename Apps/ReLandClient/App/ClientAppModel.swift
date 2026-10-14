@@ -2101,6 +2101,7 @@ final class ClientAppModel {
             negotiatedCapabilities = []
             preserveTerminalAttachmentForReconnect()
             preserveTerminalCreationForReconnect()
+            scheduleReconnect()
         case let .failed(message):
             connectionState = .failed(message)
             negotiatedProtocolVersion = nil

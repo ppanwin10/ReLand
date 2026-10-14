@@ -111,6 +111,11 @@ controller takeover/reconnect, lock/revocation behavior, native input layout,
 key translation, Unicode, pointer coordinates, and bounded JPEG encoding.
 It must not send actual desktop input or capture personal content.
 
+PSK sessions do not advertise certificate-status (OCSP) extensions because
+they do not use a certificate. The host integration suite covers clients
+that request OCSP, including the request Apple's Network.framework sends.
+Rebuild older Windows preview hosts before testing the updated Apple client.
+
 On a Mac, run the repository unit and simulator entrypoints, build the real
 Mac host, and review both iPhone and iPad. Exercise the Windows host through
 the actual Apple client over a private test network, including QR pairing,
