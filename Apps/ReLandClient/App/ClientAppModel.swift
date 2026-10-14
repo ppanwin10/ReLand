@@ -242,6 +242,9 @@ final class ClientAppModel {
     var isAppSwitcherVisible = false
     var isTerminalOnlyMode = false
     let isE2EMode: Bool
+    #if DEBUG
+    private(set) var e2eWaitingStateCount = 0
+    #endif
 
     var hostPlatform: RemoteHostPlatform {
         activeDevice?.hostPlatform ?? .macOS
@@ -2036,6 +2039,8 @@ final class ClientAppModel {
         case .connecting:
             connectionState = .connecting
         case .authenticating:
+            reconnectTask?.cancel()
+            reconnectTask = nil
             connectionState = .authenticating
         case .pairing:
             connectionState = .pairing
@@ -2096,11 +2101,17 @@ final class ClientAppModel {
                 requestTerminalSessions()
             }
         case .waiting:
+            #if DEBUG
+            if isE2EMode {
+                e2eWaitingStateCount += 1
+            }
+            #endif
             connectionState = .reconnecting
             negotiatedProtocolVersion = nil
             negotiatedCapabilities = []
             preserveTerminalAttachmentForReconnect()
             preserveTerminalCreationForReconnect()
+            scheduleReconnect()
         case let .failed(message):
             connectionState = .failed(message)
             negotiatedProtocolVersion = nil

@@ -74,6 +74,22 @@ public sealed class HostIntegrationTests
         reconnected.Read(WireKind.SessionReady);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PskSessionsDoNotAdvertiseCertificateStatus(bool tls13)
+    {
+        PskCredential credential = PskCredential.Generate("Test Phone");
+        var registry = new CredentialRegistry(new MemoryCredentialStore(credential));
+        await using var host = new RemoteHostServer(registry, new TestDesktop());
+        host.Start(IPAddress.Loopback, 0);
+        using var client = new TestClient(host.Endpoint!, credential, tls13, requestCertificateStatus: true);
+        client.Authenticate(credential);
+
+        SessionReady ready = WireJson.Decode<SessionReady>(client.Read(WireKind.SessionReady).Payload);
+        Assert.Equal("windows", ready.HostPlatform);
+    }
+
     [Fact]
     public async Task BindsApplicationAuthenticationToTlsIdentity()
     {
@@ -399,13 +415,14 @@ public sealed class HostIntegrationTests
         private readonly Stream stream;
         private readonly AuthenticationChallenge challenge;
 
-        public TestClient(IPEndPoint endpoint, PskCredential credential, bool tls13)
+        public TestClient(IPEndPoint endpoint, PskCredential credential, bool tls13,
+            bool requestCertificateStatus = false)
         {
             socket.Connect(endpoint);
             socket.ReceiveTimeout = 5000;
             socket.SendTimeout = 5000;
             var protocol = new TlsClientProtocol(socket.GetStream());
-            protocol.Connect(new TestPskClient(credential, tls13));
+            protocol.Connect(new TestPskClient(credential, tls13, requestCertificateStatus));
             stream = protocol.Stream;
             challenge = WireJson.Decode<AuthenticationChallenge>(Read(WireKind.Challenge).Payload);
         }
@@ -443,7 +460,7 @@ public sealed class HostIntegrationTests
         public void Dispose() => socket.Dispose();
     }
 
-    private sealed class TestPskClient(PskCredential credential, bool tls13)
+    private sealed class TestPskClient(PskCredential credential, bool tls13, bool requestCertificateStatus)
         : PskTlsClient(new BcTlsCrypto(),
             new BasicTlsPskIdentity(Encoding.UTF8.GetBytes(credential.Id), credential.Key))
     {
@@ -456,5 +473,27 @@ public sealed class HostIntegrationTests
 
         public override IList<TlsPskExternal> GetExternalPsks() =>
             [new BasicTlsPskExternal(Encoding.UTF8.GetBytes(credential.Id), Crypto.CreateSecret(credential.Key))];
+
+        public override IDictionary<int, byte[]> GetClientExtensions()
+        {
+            IDictionary<int, byte[]> extensions =
+                TlsExtensionsUtilities.EnsureExtensionsInitialised(base.GetClientExtensions());
+            if (requestCertificateStatus)
+            {
+                TlsExtensionsUtilities.AddStatusRequestExtension(extensions,
+                    new CertificateStatusRequest(CertificateStatusType.ocsp, new OcspStatusRequest(null, null)));
+            }
+            return extensions;
+        }
+
+        public override void ProcessServerExtensions(IDictionary<int, byte[]> serverExtensions)
+        {
+            if (requestCertificateStatus)
+            {
+                Assert.False(serverExtensions.ContainsKey(ExtensionType.status_request),
+                    "PSK sessions must not promise certificate status without a certificate.");
+            }
+            base.ProcessServerExtensions(serverExtensions);
+        }
     }
 }

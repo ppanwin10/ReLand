@@ -4,6 +4,21 @@ All notable user-visible changes will be documented here.
 
 ## Unreleased
 
+## 1.0 (5) personal-publisher beta - 2026-10-13
+
+- Published the Windows-compatible Apple client to the personal-publisher
+  [TestFlight beta][testflight-beta] for internal and external testing.
+- Moved the iPhone and iPad app to a new publisher identity. The replacement
+  TestFlight app installs separately from the previous beta, so testers must
+  pair their computer again.
+- Added pairing and desktop controls for the experimental Windows host, with
+  Windows keyboard labels and only the controls that the host supports. App
+  selection, terminals, AI CLI sessions, and remote files remain Mac-only.
+- Fixed Windows pairing with Apple clients by omitting certificate-status
+  extensions from certificate-free TLS-PSK sessions.
+- Kept remote controls responsive during screen streaming and retried waiting
+  connections when a computer's listener becomes available again.
+
 ## 1.0 Beta 2 - 2026-07-26
 
 - Published ReLand 1.0 (5) through TestFlight and the notarized
@@ -48,5 +63,5 @@ All notable user-visible changes will be documented here.
 - Added client-side private-network enforcement.
 - Removed release access to deterministic E2E credentials.
 
-[testflight-beta]: https://testflight.apple.com/join/vQqhuAdC
+[testflight-beta]: https://testflight.apple.com/join/nBusra3m
 [host-beta]: https://github.com/ppanwin10/ReLand/releases/tag/v1.0.0-beta.2

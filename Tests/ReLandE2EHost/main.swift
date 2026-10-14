@@ -60,6 +60,11 @@ private let delayedReconnect = try DelayedReconnectFixture(
     configuration: configuration,
     controlPort: fixturePort(after: port, offset: 2)
 )
+private let windowsDelayedReconnect = try DelayedReconnectFixture(
+    server: windowsServer,
+    configuration: windowsConfiguration,
+    controlPort: fixturePort(after: port, offset: 3)
+)
 
 server.onStateChange = { state in
     delayedReconnect.hostStateChanged(state)
@@ -76,6 +81,7 @@ server.onStateChange = { state in
 }
 
 windowsServer.onStateChange = { state in
+    windowsDelayedReconnect.hostStateChanged(state)
     switch state {
     case let .ready(activePort):
         print("RELAND_E2E_WINDOWS_READY:\(activePort)")
@@ -97,12 +103,14 @@ configureInputHandlers(
 configureInputHandlers(
     windowsInputSink,
     server: windowsServer,
-    configuration: windowsConfiguration
+    configuration: windowsConfiguration,
+    delayedReconnect: windowsDelayedReconnect
 )
 
 server.start(configuration: configuration)
 windowsServer.start(configuration: windowsConfiguration)
 delayedReconnect.start()
+windowsDelayedReconnect.start()
 
 dispatchMain()
 
@@ -117,7 +125,13 @@ private func configureInputHandlers(
         fflush(stdout)
         if case .text("__RELAND_DISCONNECT__") = event {
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
-                server.disconnectClients()
+                if configuration.hostPlatform == .windows,
+                   let delayedReconnect
+                {
+                    delayedReconnect.pause()
+                } else {
+                    server.disconnectClients()
+                }
             }
         } else if case .text("__RELAND_DELAYED_DISCONNECT__") = event {
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {

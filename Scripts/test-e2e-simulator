@@ -107,7 +107,7 @@ run_test() {
   xcrun simctl boot "$udid" 2>/dev/null || true
   xcrun simctl bootstatus "$udid" -b
   xcrun simctl privacy "$udid" grant local-network \
-    com.landai.reland 2>/dev/null || true
+    com.ppanwin10.reland 2>/dev/null || true
   rm -rf "$result_path"
 
   start_host "$result_name"
