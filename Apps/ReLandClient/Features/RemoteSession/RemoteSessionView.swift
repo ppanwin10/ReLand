@@ -836,6 +836,13 @@ private struct RemoteSessionStatusPill: View {
             Text(model.connectionState.title)
                 .font(.subheadline.weight(.semibold))
                 .accessibilityIdentifier("connectionStatus")
+                #if DEBUG
+                .accessibilityValue(
+                    model.isE2EMode
+                        ? "Waiting retries \(model.e2eWaitingStateCount)"
+                        : ""
+                )
+                #endif
 
             if let target = model.selectedCaptureTarget {
                 Divider()

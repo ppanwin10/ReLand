@@ -124,6 +124,11 @@ final class ReLandUITests: XCTestCase {
         let beforePointer = acknowledgement.label
         canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         waitForLabelChange(from: beforePointer, element: acknowledgement, timeout: 5)
+        let status = app.staticTexts["connectionStatus"]
+        guard let waitingStateBeforeDisconnect = status.value as? String else {
+            XCTFail("The E2E waiting-state counter is unavailable.")
+            return
+        }
         tapRemoteMoreControl("reconnectTestButton", in: app)
         defer { resumePausedE2EHost(port: 45458) }
         waitForLabelChange(
@@ -131,6 +136,11 @@ final class ReLandUITests: XCTestCase {
             element: app.staticTexts["connectionStatus"],
             timeout: 10
         )
+        expectation(
+            for: NSPredicate(format: "value != %@", waitingStateBeforeDisconnect),
+            evaluatedWith: status
+        )
+        waitForExpectations(timeout: 10)
         resumePausedE2EHost(port: 45458)
         waitForLabel(
             "Connected",
@@ -444,6 +454,12 @@ final class ReLandUITests: XCTestCase {
             app.staticTexts["terminal-2"]
                 .waitForExistence(timeout: 5)
         )
+        let terminalOutput = app.staticTexts["terminalOutputStatus"]
+        waitForLabelContaining(
+            "attachment-1-size-",
+            element: terminalOutput,
+            timeout: 10
+        )
         terminal.coordinate(
             withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
         )
@@ -453,11 +469,9 @@ final class ReLandUITests: XCTestCase {
         )
         let focusedTerminal = app.textViews.firstMatch
         XCTAssertTrue(focusedTerminal.waitForExistence(timeout: 5))
+        focusedTerminal.tap()
         focusedTerminal.typeText("hello-terminal")
 
-        let terminalOutput = app.staticTexts[
-            "terminalOutputStatus"
-        ]
         XCTAssertTrue(
             terminalOutput.waitForExistence(timeout: 5)
         )
@@ -1000,6 +1014,10 @@ final class ReLandUITests: XCTestCase {
             identifier: identifier
         ).firstMatch
         XCTAssertTrue(control.waitForExistence(timeout: 5))
+        let frames = app.staticTexts["frameCount"]
+        let menuOpenedAtFrame = frames.label
+        waitForLabelChange(from: menuOpenedAtFrame, element: frames, timeout: 5)
+        XCTAssertTrue(control.isHittable)
         control.tap()
     }
 
