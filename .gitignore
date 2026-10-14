@@ -9,3 +9,11 @@ ReLand.xcodeproj/
 TestResults/
 Config/Local.xcconfig
 .playwright-mcp/
+Apps/ReLandWindowsHost/bin/
+Apps/ReLandWindowsHost/obj/
+Packages/ReLandWindowsCore/bin/
+Packages/ReLandWindowsCore/obj/
+Tests/ReLandWindowsTests/bin/
+Tests/ReLandWindowsTests/obj/
+Tests/ReLandWindowsUiReview/bin/
+Tests/ReLandWindowsUiReview/obj/

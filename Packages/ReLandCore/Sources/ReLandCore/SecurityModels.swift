@@ -18,7 +18,7 @@ extension ReLandSecurityError: LocalizedError {
         case .invalidPairingPayload:
             "This is not a valid ReLand pairing code."
         case .expiredPairingCode:
-            "This ReLand pairing code has expired. Create a new one on the Mac."
+            "This ReLand pairing code has expired. Create a new one on your computer."
         case .untrustedNetworkAddress:
             "ReLand pairing is limited to private LAN or Tailscale addresses."
         case .randomGenerationFailed:
@@ -95,6 +95,8 @@ public struct PairingDescriptor: Codable, Equatable, Sendable {
     public let port: UInt16
     public let credential: PSKCredential
     public let expiresAt: Date
+    public let hostPlatform: RemoteHostPlatform
+    public let capabilities: Set<RemoteCapability>?
 
     public init(
         hostID: String,
@@ -102,7 +104,9 @@ public struct PairingDescriptor: Codable, Equatable, Sendable {
         address: String,
         port: UInt16,
         credential: PSKCredential,
-        expiresAt: Date
+        expiresAt: Date,
+        hostPlatform: RemoteHostPlatform = .macOS,
+        capabilities: Set<RemoteCapability>? = nil
     ) {
         self.hostID = hostID
         self.hostName = hostName
@@ -110,6 +114,8 @@ public struct PairingDescriptor: Codable, Equatable, Sendable {
         self.port = port
         self.credential = credential
         self.expiresAt = expiresAt
+        self.hostPlatform = hostPlatform
+        self.capabilities = capabilities
     }
 
     public func encodedPayload() throws -> String {
@@ -120,7 +126,9 @@ public struct PairingDescriptor: Codable, Equatable, Sendable {
             address: address,
             port: port,
             credential: credential,
-            expiresAt: expiresAt
+            expiresAt: expiresAt,
+            hostPlatform: hostPlatform,
+            capabilities: capabilities
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970
@@ -176,7 +184,9 @@ public struct PairingDescriptor: Codable, Equatable, Sendable {
             address: decoded.address,
             port: decoded.port,
             credential: decoded.credential,
-            expiresAt: decoded.expiresAt
+            expiresAt: decoded.expiresAt,
+            hostPlatform: decoded.hostPlatform,
+            capabilities: decoded.capabilities
         )
     }
 }
@@ -189,4 +199,52 @@ private struct PairingPayload: Codable {
     let port: UInt16
     let credential: PSKCredential
     let expiresAt: Date
+    let hostPlatform: RemoteHostPlatform
+    let capabilities: Set<RemoteCapability>?
+
+    init(
+        version: Int,
+        hostID: String,
+        hostName: String,
+        address: String,
+        port: UInt16,
+        credential: PSKCredential,
+        expiresAt: Date,
+        hostPlatform: RemoteHostPlatform,
+        capabilities: Set<RemoteCapability>?
+    ) {
+        self.version = version
+        self.hostID = hostID
+        self.hostName = hostName
+        self.address = address
+        self.port = port
+        self.credential = credential
+        self.expiresAt = expiresAt
+        self.hostPlatform = hostPlatform
+        self.capabilities = capabilities
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case version, hostID, hostName, address, port
+        case credential, expiresAt, hostPlatform, capabilities
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        hostID = try container.decode(String.self, forKey: .hostID)
+        hostName = try container.decode(String.self, forKey: .hostName)
+        address = try container.decode(String.self, forKey: .address)
+        port = try container.decode(UInt16.self, forKey: .port)
+        credential = try container.decode(PSKCredential.self, forKey: .credential)
+        expiresAt = try container.decode(Date.self, forKey: .expiresAt)
+        hostPlatform = try container.decodeIfPresent(
+            RemoteHostPlatform.self,
+            forKey: .hostPlatform
+        ) ?? .macOS
+        capabilities = try container.decodeIfPresent(
+            Set<RemoteCapability>.self,
+            forKey: .capabilities
+        )
+    }
 }

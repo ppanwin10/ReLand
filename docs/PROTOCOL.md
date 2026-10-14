@@ -40,7 +40,38 @@ explicit user confirmation. The host revokes the current controller with the
 `sessionTakenOver` error before activating the replacement.
 
 Current capabilities are screen, input, terminal, artifacts, approved files,
-and capture-target selection.
+capture-target selection, and host status. The Windows desktop preview
+advertises only `screen`, `input`, and `hostStatus`. A host must not execute
+input unless the client negotiated the `input` capability.
+
+## Host platform metadata
+
+`PairDeviceAccepted`, `SessionReady`, the v2 pairing payload, and saved
+`RemoteDevice` records may carry `hostPlatform` (`macOS` or `windows`).
+`PairDeviceAccepted`, pairing payloads, and saved devices may also carry a
+`capabilities` snapshot for presenting supported actions before reconnecting.
+The authenticated `SessionReady` negotiation remains authoritative.
+
+These are additive JSON fields: the supported range remains `7...8` and the
+pairing payload prefix remains `reland-pair:v2:`. Updated decoders default
+missing platform metadata to `macOS`; existing Mac device records with no
+snapshot preserve their actions. Unknown platform/capability values are not
+silently accepted. Older decoders ignore the added fields, although their UI
+may continue to show unsupported Mac-specific controls for Windows.
+
+Input enum JSON remains Swift's synthesized representation, for example:
+
+```json
+{"pointerAbsolute":{"x":0.25,"y":0.75}}
+{"button":{"button":"left","isDown":true,"clickCount":1}}
+{"text":{"_0":"Example text"}}
+{"key":{"code":53,"isDown":true,"modifiers":0}}
+```
+
+Absolute pointer coordinates are normalized to the shared display. Key codes
+and modifier bits retain their macOS wire meaning on both platforms; Windows
+translates Command to the Windows key, Option to Alt, and the remaining keys
+to their Windows equivalents. Video frames remain raw JPEG packet payloads.
 
 ## Message ranges
 
@@ -82,6 +113,9 @@ features and do not expose the rename action.
 ## Limits
 
 - Maximum packet: 8 MiB.
+- Windows inbound command body: 64 KiB; text input: 4096 UTF-16 code units.
+- Windows host: at most eight pending/active connections, twelve seconds for
+  TLS plus application authentication, and a twenty-second controller lease.
 - Artifact chunk: 256 KiB.
 - Maximum artifact: 512 MiB.
 

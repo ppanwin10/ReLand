@@ -1,3 +1,4 @@
+import Network
 import XCTest
 
 @MainActor
@@ -8,7 +9,7 @@ final class ReLandUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(
-            app.staticTexts["Your Mac, back in reach"]
+            app.staticTexts["Your computer, back in reach"]
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(app.staticTexts["No ReLand cloud relay"].exists)
@@ -56,7 +57,68 @@ final class ReLandUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.navigationBars["ReLand"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Add Mac"].exists)
+        XCTAssertTrue(app.buttons["Add computer"].exists)
+    }
+
+    func testWindowsDeviceOffersOnlySupportedDesktopActions() {
+        verifyWindowsDeviceActions()
+    }
+
+    private func verifyWindowsDeviceActions() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--reland-windows-device-list-e2e"]
+        app.launch()
+
+        XCTAssertTrue(
+            app.staticTexts["Example Windows PC"]
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(app.buttons["deviceScreenButton"].isHittable)
+        XCTAssertFalse(app.buttons["deviceAppButton"].exists)
+        XCTAssertFalse(app.buttons["deviceTerminalButton"].exists)
+        XCTAssertTrue(app.buttons["Add computer"].exists)
+        attachScreenshot(named: "Windows device actions")
+    }
+
+    func testWindowsSessionHidesMacServicesAndUsesWindowsKeyboardLabels() {
+        verifyWindowsSessionControls()
+    }
+
+    private func verifyWindowsSessionControls() {
+        let app = launchE2EApplication(port: "45456")
+        XCTAssertTrue(app.buttons["keyboardButton"].isHittable)
+        XCTAssertTrue(app.buttons["moreButton"].isHittable)
+        XCTAssertFalse(app.buttons["appsButton"].exists)
+        XCTAssertFalse(app.buttons["terminalButton"].exists)
+        XCTAssertFalse(app.buttons["filesButton"].exists)
+        attachScreenshot(named: "Windows desktop controls")
+
+        app.buttons["keyboardButton"].tap()
+        XCTAssertTrue(app.buttons["Windows"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Alt"].exists)
+        XCTAssertTrue(app.buttons["Control"].exists)
+        XCTAssertFalse(app.buttons["Command"].exists)
+        attachScreenshot(named: "Windows keyboard controls")
+        app.navigationBars["Keyboard"].buttons["Cancel"].tap()
+
+        let acknowledgement = app.staticTexts["lastInputAck"]
+        let canvas = app.otherElements["remoteCanvas"]
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        waitForLabelChange(from: "No input sent", element: acknowledgement, timeout: 5)
+        tapRemoteMoreControl("reconnectTestButton", in: app)
+        waitForLabelChange(
+            from: "Connected",
+            element: app.staticTexts["connectionStatus"],
+            timeout: 10
+        )
+        waitForLabel(
+            "Connected",
+            element: app.staticTexts["connectionStatus"],
+            timeout: 10
+        )
+        XCTAssertFalse(app.buttons["appsButton"].exists)
+        XCTAssertFalse(app.buttons["terminalButton"].exists)
+        XCTAssertFalse(app.buttons["filesButton"].exists)
     }
 
     func testDeviceActionsAdaptOnPhone() {
@@ -76,6 +138,7 @@ final class ReLandUITests: XCTestCase {
             XCTAssertTrue(app.buttons[identifier].isHittable)
         }
         attachScreenshot(named: "Device actions")
+        verifyWindowsDeviceActions()
     }
 
     func testTerminalActionsSheetKeepsStableHierarchyWhileScrolling() {
@@ -604,11 +667,15 @@ final class ReLandUITests: XCTestCase {
             "terminalDelayedReconnectTestButton",
             in: app
         )
+        defer {
+            resumePausedE2EHost()
+        }
         XCTAssertTrue(
             app.staticTexts["terminalConnectionStatus"]
                 .waitForExistence(timeout: 5)
         )
         app.buttons["terminalSessionsButton"].tap()
+        XCTAssertFalse(app.alerts["ReLand"].exists)
         let more = app.buttons["terminalMoreButton-rl-e2e"]
         XCTAssertTrue(more.waitForExistence(timeout: 5))
         more.tap()
@@ -720,6 +787,7 @@ final class ReLandUITests: XCTestCase {
         )
 
         attachScreenshot(named: "App Mode direct touch")
+        verifyWindowsSessionControls()
     }
 
     func testExistingCopilotTerminalUX() throws {
@@ -842,7 +910,7 @@ final class ReLandUITests: XCTestCase {
         attachScreenshot(named: "Live Chrome after tap")
     }
 
-    private func launchE2EApplication() -> XCUIApplication {
+    private func launchE2EApplication(port: String = "45455") -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = [
@@ -850,7 +918,7 @@ final class ReLandUITests: XCTestCase {
             "--e2e-host",
             "127.0.0.1",
             "--e2e-port",
-            "45455",
+            port,
         ]
         app.launch()
 
@@ -858,6 +926,50 @@ final class ReLandUITests: XCTestCase {
         XCTAssertTrue(status.waitForExistence(timeout: 10))
         waitForLabel("Connected", element: status, timeout: 10)
         return app
+    }
+
+    private func resumePausedE2EHost() {
+        let resumed = expectation(description: "E2E host listener restored")
+        let connection = NWConnection(
+            host: "127.0.0.1",
+            port: 45457,
+            using: .tcp
+        )
+        defer {
+            connection.cancel()
+        }
+        connection.stateUpdateHandler = { state in
+            switch state {
+            case .ready:
+                connection.send(
+                    content: Data("resume".utf8),
+                    completion: .contentProcessed { error in
+                        if error != nil {
+                            XCTFail("The E2E resume request could not be sent.")
+                            resumed.fulfill()
+                            return
+                        }
+                        connection.receive(
+                            minimumIncompleteLength: 5,
+                            maximumLength: 5
+                        ) { data, _, _, error in
+                            XCTAssertNil(error)
+                            XCTAssertEqual(data, Data("ready".utf8))
+                            resumed.fulfill()
+                        }
+                    }
+                )
+            case .failed:
+                XCTFail("The E2E fixture control connection failed.")
+                resumed.fulfill()
+            default:
+                break
+            }
+        }
+        connection.start(queue: DispatchQueue(
+            label: "com.landai.reland.uitest-fixture-control"
+        ))
+        wait(for: [resumed], timeout: 10)
     }
 
     private func tapRemoteMoreControl(

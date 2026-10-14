@@ -4,6 +4,111 @@ import Testing
 
 struct WireProtocolTests {
     @Test
+    func windowsSessionAndPairingMetadataRoundTrip() throws {
+        let capabilities: Set<RemoteCapability> = [
+            .screen, .input, .hostStatus,
+        ]
+        let ready = SessionReady(
+            sessionID: "windows-session",
+            protocolVersion: 8,
+            capabilities: capabilities,
+            hostPlatform: .windows
+        )
+        let accepted = PairDeviceAccepted(
+            hostID: "windows-host",
+            hostName: "Test Windows PC",
+            hostPlatform: .windows,
+            capabilities: capabilities
+        )
+
+        #expect(try WireJSON.decode(SessionReady.self, from: WireJSON.encode(ready)) == ready)
+        #expect(
+            try WireJSON.decode(
+                PairDeviceAccepted.self,
+                from: WireJSON.encode(accepted)
+            ) == accepted
+        )
+    }
+
+    @Test
+    func legacyMacMetadataStillDecodes() throws {
+        let accepted = try WireJSON.decode(
+            PairDeviceAccepted.self,
+            from: Data(#"{"hostID":"host","hostName":"Test Mac"}"#.utf8)
+        )
+        let ready = try WireJSON.decode(
+            SessionReady.self,
+            from: Data(
+                """
+                {
+                  "sessionID":"legacy-session",
+                  "protocolVersion":7,
+                  "capabilities":["screen","input"],
+                  "hostPermissions":{
+                    "screenRecordingGranted":true,
+                    "accessibilityGranted":true,
+                    "sessionUnlocked":true
+                  }
+                }
+                """.utf8
+            )
+        )
+
+        #expect(accepted.hostPlatform == .macOS)
+        #expect(accepted.capabilities == nil)
+        #expect(ready.hostPlatform == .macOS)
+        #expect(ready.protocolVersion == 7)
+    }
+
+    @Test
+    func savedLegacyMacAndWindowsCapabilitiesRemainDistinct() throws {
+        let legacy = try WireJSON.decode(
+            RemoteDevice.self,
+            from: Data(
+                """
+                {
+                  "id":"device","hostID":"host","name":"Test Mac",
+                  "address":"192.168.1.20","port":45454,"credentialID":"credential"
+                }
+                """.utf8
+            )
+        )
+        let windows = RemoteDevice(
+            hostID: "windows-host",
+            name: "Test Windows PC",
+            address: "192.168.1.20",
+            port: 45454,
+            credentialID: "windows-credential",
+            hostPlatform: .windows,
+            capabilities: [.screen, .input, .hostStatus]
+        )
+        let decoded = try WireJSON.decode(RemoteDevice.self, from: WireJSON.encode(windows))
+
+        #expect(legacy.hostPlatform == .macOS)
+        #expect(legacy.supports(.terminal))
+        #expect(legacy.supports(.captureTargets))
+        #expect(decoded == windows)
+        #expect(decoded.supports(.screen))
+        #expect(!decoded.supports(.terminal))
+        #expect(!decoded.supports(.files))
+        #expect(!decoded.supports(.captureTargets))
+    }
+
+    @Test
+    func windowsDeviceWithoutCapabilitySnapshotDefaultsToDesktopOnly() {
+        let device = RemoteDevice(
+            hostID: "host", name: "Test Windows PC",
+            address: "192.168.1.20", port: 45454, credentialID: "credential",
+            hostPlatform: .windows
+        )
+        #expect(device.supports(.screen))
+        #expect(device.supports(.input))
+        #expect(!device.supports(.terminal))
+        #expect(!device.supports(.files))
+        #expect(!device.supports(.captureTargets))
+    }
+
+    @Test
     func packetRoundTripAcrossFragmentedReads() throws {
         let first = WirePacket(
             kind: .challenge,

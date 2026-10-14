@@ -41,6 +41,35 @@ final class ClientAppModel {
             }
         }
 
+        func title(for platform: RemoteHostPlatform) -> String {
+            if platform == .windows {
+                switch self {
+                case .command:
+                    return "Windows"
+                case .option:
+                    return "Alt"
+                case .control:
+                    return "Control"
+                case .shift:
+                    return "Shift"
+                }
+            }
+            return title
+        }
+
+        var windowsLabel: String {
+            switch self {
+            case .command:
+                "Win"
+            case .option:
+                "Alt"
+            case .control:
+                "Ctrl"
+            case .shift:
+                "Shift"
+            }
+        }
+
         var flag: UInt64 {
             switch self {
             case .command:
@@ -206,6 +235,7 @@ final class ClientAppModel {
     var selectedCaptureTarget: RemoteCaptureTargetInfo?
     var hostPermissionState: HostPermissionState?
     var negotiatedProtocolVersion: UInt16?
+    var negotiatedCapabilities: Set<RemoteCapability> = []
     var isCaptureTargetPickerPresented = false
     var captureTargetRevision = 0
     var isAppMode = false
@@ -213,8 +243,26 @@ final class ClientAppModel {
     var isTerminalOnlyMode = false
     let isE2EMode: Bool
 
+    var hostPlatform: RemoteHostPlatform {
+        activeDevice?.hostPlatform ?? .macOS
+    }
+
+    func supports(_ capability: RemoteCapability) -> Bool {
+        if negotiatedProtocolVersion != nil {
+            return negotiatedCapabilities.contains(capability)
+        }
+        return activeDevice?.supports(capability) ?? false
+    }
+
+    var canSendRemoteInput: Bool {
+        canUseRemoteSession
+            && supports(.input)
+            && hostPermissionState?.sessionUnlocked != false
+            && hostPermissionState?.accessibilityGranted != false
+    }
+
     var supportsTerminalRename: Bool {
-        guard let negotiatedProtocolVersion else {
+        guard supports(.terminal), let negotiatedProtocolVersion else {
             return false
         }
         return negotiatedProtocolVersion
@@ -231,6 +279,10 @@ final class ClientAppModel {
     }
 
     var canPerformTerminalActions: Bool {
+        canUseRemoteSession && supports(.terminal)
+    }
+
+    private var canUseRemoteSession: Bool {
         connectionState == .connected && session != nil
     }
 
@@ -257,6 +309,7 @@ final class ClientAppModel {
     private var reconnectTask: Task<Void, Never>?
     private var manualDisconnect = false
     private var openTerminalAfterConnect = false
+    private var refreshTerminalSessionsAfterReconnect = false
     private var pendingCaptureIntent: CaptureIntent?
     private var pendingCaptureCycleDirection:
         CaptureCycleDirection?
@@ -353,11 +406,25 @@ final class ClientAppModel {
         } else if
             arguments.contains("--reland-skip-onboarding")
                 || arguments.contains("--reland-device-list-e2e")
+                || arguments.contains("--reland-windows-device-list-e2e")
                 || isE2EMode
         {
             hasCompletedOnboarding = true
         }
-        if arguments.contains("--reland-device-list-e2e") {
+        if arguments.contains("--reland-windows-device-list-e2e") {
+            devices = [
+                RemoteDevice(
+                    id: "windows-device-list-e2e",
+                    hostID: "windows-device-list-e2e-host",
+                    name: "Example Windows PC",
+                    address: "100.100.100.100",
+                    port: ReLandConstants.defaultPort,
+                    credentialID: "windows-device-list-e2e",
+                    hostPlatform: .windows,
+                    capabilities: [.screen, .input, .hostStatus]
+                ),
+            ]
+        } else if arguments.contains("--reland-device-list-e2e") {
             devices = [
                 RemoteDevice(
                     id: "device-list-e2e",
@@ -552,6 +619,10 @@ final class ClientAppModel {
             return
         }
         pendingPairingDescriptor = nil
+        guard Date() < descriptor.expiresAt else {
+            alertMessage = ReLandSecurityError.expiredPairingCode.localizedDescription
+            return
+        }
         do {
             let newCredential = try PSKCredential.generate(
                 name: UIDevice.current.name
@@ -579,6 +650,14 @@ final class ClientAppModel {
         terminalOnly: Bool = false,
         appOnly: Bool = false
     ) {
+        guard !terminalOnly || device.supports(.terminal) else {
+            alertMessage = "Terminal sessions are not available on this computer."
+            return
+        }
+        guard !appOnly || device.supports(.captureTargets) else {
+            alertMessage = "App selection is not available on this computer."
+            return
+        }
         do {
             guard PrivateNetworkPolicy.allows(device.address) else {
                 throw ClientModelError.untrustedNetworkAddress
@@ -612,6 +691,7 @@ final class ClientAppModel {
         activeCredential = nil
         isRemoteSessionPresented = false
         connectionState = .idle
+        keyboardModifiers.removeAll()
         remoteImage = nil
         frameCount = 0
         terminalSessions = []
@@ -628,6 +708,7 @@ final class ClientAppModel {
         terminalCreationTimeoutTask = nil
         terminalCreationState = .idle
         negotiatedProtocolVersion = nil
+        negotiatedCapabilities = []
         resetTerminalArtifacts()
         resetRemoteFiles()
         captureTargets = []
@@ -647,6 +728,7 @@ final class ClientAppModel {
         pendingTerminalOutput.removeAll()
         isTerminalOnlyMode = false
         openTerminalAfterConnect = false
+        refreshTerminalSessionsAfterReconnect = false
     }
 
     func remove(_ device: RemoteDevice) {
@@ -676,6 +758,10 @@ final class ClientAppModel {
     }
 
     func send(_ input: RemoteInputEvent) {
+        guard canSendRemoteInput else {
+            alertMessage = "Connect to an unlocked computer before sending input."
+            return
+        }
         session?.send(input: input)
     }
 
@@ -684,13 +770,31 @@ final class ClientAppModel {
         send(.button(button: button, isDown: false, clickCount: clickCount))
     }
 
-    func sendText(_ text: String) {
+    @discardableResult
+    func sendText(_ text: String) -> Bool {
         guard !text.isEmpty else {
-            return
+            alertMessage = "Enter text to send."
+            return false
+        }
+        guard canSendRemoteInput else {
+            alertMessage = "Connect to an unlocked computer before sending text."
+            return false
+        }
+        if hostPlatform == .windows,
+           text.utf16.count > 4_096 || text.contains("\0")
+        {
+            alertMessage = "Send up to 4096 characters at a time, without null characters."
+            return false
         }
         if keyboardModifierFlags == 0 {
             send(.text(text))
-            return
+            return true
+        }
+        if hostPlatform == .windows,
+           text.lowercased().contains(where: { Self.virtualKeyCode(for: $0) == nil })
+        {
+            alertMessage = "Clear keyboard modifiers before sending this text."
+            return false
         }
 
         let modifiers = keyboardModifierFlags
@@ -714,6 +818,7 @@ final class ClientAppModel {
             )
         }
         keyboardModifiers.removeAll()
+        return true
     }
 
     func toggle(_ modifier: KeyboardModifier) {
@@ -746,6 +851,9 @@ final class ClientAppModel {
     }
 
     func openTerminalWorkspace() {
+        guard requireCapability(.terminal) else {
+            return
+        }
         isTerminalOnlyMode = false
         presentTerminalWorkspace()
     }
@@ -759,12 +867,25 @@ final class ClientAppModel {
         let shouldDisconnect = isTerminalOnlyMode
         detachTerminal()
         isTerminalWorkspacePresented = false
+        refreshTerminalSessionsAfterReconnect = false
         if shouldDisconnect {
             disconnect()
         }
     }
 
     func requestTerminalSessions() {
+        if !canUseRemoteSession,
+           supports(.terminal),
+           activeDevice != nil,
+           !manualDisconnect
+        {
+            refreshTerminalSessionsAfterReconnect = true
+            return
+        }
+        guard requireCapability(.terminal) else {
+            return
+        }
+        refreshTerminalSessionsAfterReconnect = false
         session?.requestTerminalSessions()
     }
 
@@ -1267,15 +1388,24 @@ final class ClientAppModel {
     }
 
     func openCaptureTargetPicker() {
+        guard requireCapability(.captureTargets) else {
+            return
+        }
         isCaptureTargetPickerPresented = true
         requestCaptureTargets()
     }
 
     func requestCaptureTargets() {
+        guard requireCapability(.captureTargets) else {
+            return
+        }
         session?.requestCaptureTargets()
     }
 
     func requestHostStatus() {
+        guard requireCapability(.hostStatus) else {
+            return
+        }
         session?.requestHostStatus()
     }
 
@@ -1340,15 +1470,33 @@ final class ClientAppModel {
             remoteFileRootNames = [:]
             hasLoadedRemoteFileRoots = false
         }
-        guard canPerformTerminalActions, let session else {
+        guard requireCapability(.files), canUseRemoteSession, let session else {
             isLoadingRemoteFiles = false
-            alertMessage =
-                RemoteFileDownloadError.notConnected
-                    .localizedDescription
             return false
         }
         isLoadingRemoteFiles = true
         session.requestFiles(path: path)
+        return true
+    }
+
+    private func requireCapability(_ capability: RemoteCapability) -> Bool {
+        guard canUseRemoteSession else {
+            alertMessage = "Reconnect to your computer before using this control."
+            return false
+        }
+        guard supports(capability) else {
+            switch capability {
+            case .terminal, .artifacts:
+                alertMessage = "Terminal sessions are not available on this computer."
+            case .files:
+                alertMessage = "File browsing is not available on this computer."
+            case .captureTargets:
+                alertMessage = "App selection is not available on this computer."
+            default:
+                alertMessage = "This control is not available on this computer."
+            }
+            return false
+        }
         return true
     }
 
@@ -1387,6 +1535,17 @@ final class ClientAppModel {
         session = nil
         previousSession?.disconnect()
         manualDisconnect = false
+        negotiatedProtocolVersion = nil
+        negotiatedCapabilities = []
+        hostPermissionState = nil
+        if activeDevice?.hostID != device.hostID {
+            remoteImage = nil
+            displayInformation = nil
+            frameCount = 0
+            lastInputAcknowledgement = "No input sent"
+            captureTargets = []
+            selectedCaptureTarget = nil
+        }
         activeDevice = device
         activeCredential = credential
         isRemoteSessionPresented = true
@@ -1423,7 +1582,9 @@ final class ClientAppModel {
                 else {
                     return
                 }
-                self.handle(state)
+                if state != .connected {
+                    self.handle(state)
+                }
             }
         }
         clientSession.onRemoteError = {
@@ -1489,30 +1650,67 @@ final class ClientAppModel {
                 }
                 self.negotiatedProtocolVersion =
                     ready.protocolVersion
+                self.negotiatedCapabilities = ready.capabilities
+                self.hostPermissionState = ready.hostPermissions
+                if var device = self.activeDevice {
+                    device.hostPlatform = ready.hostPlatform
+                    device.capabilities = ready.capabilities
+                    self.activeDevice = device
+                    do {
+                        try self.deviceStore.update(device)
+                        self.devices = self.deviceStore.loadDevices()
+                    } catch {
+                        self.alertMessage = "ReLand could not save this computer's supported controls."
+                    }
+                }
+                self.handle(.connected)
             }
         }
-        clientSession.onDisplayInformation = { [weak self] information in
+        clientSession.onDisplayInformation = { [weak self, weak clientSession] information in
             Task { @MainActor in
-                self?.displayInformation = information
+                guard let self, self.session === clientSession else {
+                    return
+                }
+                self.displayInformation = information
             }
         }
-        clientSession.onFrame = { [weak self] data in
+        clientSession.onFrame = { [weak self, weak clientSession] data in
             Task { @MainActor in
-                guard let self, let image = UIImage(data: data) else {
+                guard
+                    let self,
+                    self.session === clientSession,
+                    self.hostPermissionState?.sessionUnlocked != false,
+                    self.hostPermissionState?.screenRecordingGranted != false,
+                    let image = UIImage(data: data)
+                else {
                     return
                 }
                 self.remoteImage = image
                 self.frameCount += 1
             }
         }
-        clientSession.onInputAcknowledgement = { [weak self] acknowledgement in
+        clientSession.onInputAcknowledgement = { [weak self, weak clientSession] acknowledgement in
             Task { @MainActor in
-                self?.lastInputAcknowledgement = acknowledgement.summary
+                guard let self, self.session === clientSession else {
+                    return
+                }
+                self.lastInputAcknowledgement = acknowledgement.summary
             }
         }
-        clientSession.onPaired = { [weak self] accepted, credential in
+        clientSession.onPaired = { [weak self, weak clientSession] accepted, credential in
             Task { @MainActor in
-                guard let self, let pairingDescriptor else {
+                guard
+                    let self,
+                    self.session === clientSession,
+                    let pairingDescriptor
+                else {
+                    return
+                }
+                guard
+                    accepted.hostID == pairingDescriptor.hostID,
+                    accepted.hostPlatform == pairingDescriptor.hostPlatform
+                else {
+                    self.alertMessage = "The computer does not match the pairing code. Create a new code and try again."
                     return
                 }
                 do {
@@ -1521,7 +1719,9 @@ final class ClientAppModel {
                         name: accepted.hostName,
                         address: pairingDescriptor.address,
                         port: pairingDescriptor.port,
-                        credentialID: credential.id
+                        credentialID: credential.id,
+                        hostPlatform: accepted.hostPlatform,
+                        capabilities: accepted.capabilities ?? pairingDescriptor.capabilities
                     )
                     try self.deviceStore.save(
                         device,
@@ -1705,9 +1905,9 @@ final class ClientAppModel {
                 self.receiveRemoteFileChunk(chunk)
             }
         }
-        clientSession.onCaptureTargets = { [weak self] response in
+        clientSession.onCaptureTargets = { [weak self, weak clientSession] response in
             Task { @MainActor in
-                guard let self else {
+                guard let self, self.session === clientSession else {
                     return
                 }
                 self.captureTargets = response.targets
@@ -1758,9 +1958,9 @@ final class ClientAppModel {
             }
         }
         clientSession.onCaptureTargetSelected = {
-            [weak self] selected in
+            [weak self, weak clientSession] selected in
             Task { @MainActor in
-                guard let self else {
+                guard let self, self.session === clientSession else {
                     return
                 }
                 self.selectedCaptureTarget = selected.target
@@ -1800,6 +2000,9 @@ final class ClientAppModel {
                     return
                 }
                 self.hostPermissionState = state
+                if !state.sessionUnlocked || !state.screenRecordingGranted {
+                    self.remoteImage = nil
+                }
             }
         }
     }
@@ -1841,6 +2044,30 @@ final class ClientAppModel {
             reconnectTask = nil
             isControllerTakeoverConfirmationPresented = false
             connectionState = .connected
+            if !supports(.captureTargets) {
+                if isAppMode {
+                    alertMessage = "App selection is not available on this computer."
+                }
+                pendingCaptureIntent = nil
+                isAppMode = false
+                isCaptureTargetPickerPresented = false
+                isAppSwitcherVisible = false
+            }
+            if !supports(.terminal) {
+                refreshTerminalSessionsAfterReconnect = false
+                if openTerminalAfterConnect {
+                    disconnect()
+                    alertMessage = "Terminal sessions are not available on this computer."
+                    return
+                }
+                isTerminalWorkspacePresented = false
+                pendingTerminalAttachmentSessionID = nil
+                attachedTerminalSessionID = nil
+                isTerminalAttachmentReady = false
+                if terminalCreationState.isSubmitting {
+                    failTerminalCreation(message: "Terminal sessions are not available on this computer.")
+                }
+            }
             requestPendingTerminalAttachment()
             if
                 terminalCreationState.isSubmitting,
@@ -1865,22 +2092,25 @@ final class ClientAppModel {
             if pendingCaptureIntent != nil {
                 requestCaptureTargets()
             }
-            if isTerminalWorkspacePresented {
+            if isTerminalWorkspacePresented || refreshTerminalSessionsAfterReconnect {
                 requestTerminalSessions()
             }
         case .waiting:
             connectionState = .reconnecting
             negotiatedProtocolVersion = nil
+            negotiatedCapabilities = []
             preserveTerminalAttachmentForReconnect()
             preserveTerminalCreationForReconnect()
         case let .failed(message):
             connectionState = .failed(message)
             negotiatedProtocolVersion = nil
+            negotiatedCapabilities = []
             preserveTerminalAttachmentForReconnect()
             preserveTerminalCreationForReconnect()
             scheduleReconnect()
         case .disconnected:
             negotiatedProtocolVersion = nil
+            negotiatedCapabilities = []
             preserveTerminalAttachmentForReconnect()
             preserveTerminalCreationForReconnect()
             if manualDisconnect {
@@ -2466,7 +2696,7 @@ private enum ClientModelError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingCredential:
-            "The saved access credential is missing. Pair this Mac again."
+            "The saved access credential is missing. Pair this computer again."
         case .untrustedNetworkAddress:
             "ReLand only connects to private LAN or Tailscale addresses."
         case .cacheUnavailable:

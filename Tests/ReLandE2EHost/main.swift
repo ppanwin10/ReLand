@@ -43,8 +43,26 @@ let server = RemoteHostServer(
         permissionState
     }
 )
+private let windowsInputSink = RecordingInputSink()
+private let windowsConfiguration = RemoteHostConfiguration(
+    hostID: "reland-windows-e2e-host",
+    hostName: "ReLand Windows E2E Host",
+    port: try fixturePort(after: port, offset: 1),
+    credentials: [credential],
+    hostPlatform: .windows
+)
+private let windowsServer = RemoteHostServer(
+    frameSource: DesktopOnlyFrameSource(),
+    inputSink: windowsInputSink
+)
+private let delayedReconnect = try DelayedReconnectFixture(
+    server: server,
+    configuration: configuration,
+    controlPort: fixturePort(after: port, offset: 2)
+)
 
 server.onStateChange = { state in
+    delayedReconnect.hostStateChanged(state)
     switch state {
     case let .ready(activePort):
         print("RELAND_E2E_READY:\(activePort)")
@@ -57,28 +75,96 @@ server.onStateChange = { state in
     }
 }
 
-inputSink.onEvent = { event, summary in
-    print("RELAND_E2E_INPUT:\(summary)")
-    fflush(stdout)
-    if case .text("__RELAND_DISCONNECT__") = event {
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
-            server.disconnectClients()
-        }
-    } else if case .text("__RELAND_DELAYED_DISCONNECT__") = event {
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
-            server.stop()
-            DispatchQueue.global().asyncAfter(
-                deadline: .now() + 1.5
-            ) {
-                server.start(configuration: configuration)
+windowsServer.onStateChange = { state in
+    switch state {
+    case let .ready(activePort):
+        print("RELAND_E2E_WINDOWS_READY:\(activePort)")
+        fflush(stdout)
+    case let .failed(message):
+        fputs("RELAND_E2E_WINDOWS_FAILED:\(message)\n", stderr)
+        fflush(stderr)
+    case .starting, .stopped:
+        break
+    }
+}
+
+configureInputHandlers(
+    inputSink,
+    server: server,
+    configuration: configuration,
+    delayedReconnect: delayedReconnect
+)
+configureInputHandlers(
+    windowsInputSink,
+    server: windowsServer,
+    configuration: windowsConfiguration
+)
+
+server.start(configuration: configuration)
+windowsServer.start(configuration: windowsConfiguration)
+delayedReconnect.start()
+
+dispatchMain()
+
+private func configureInputHandlers(
+    _ inputSink: RecordingInputSink,
+    server: RemoteHostServer,
+    configuration: RemoteHostConfiguration,
+    delayedReconnect: DelayedReconnectFixture? = nil
+) {
+    inputSink.onEvent = { event, summary in
+        print("RELAND_E2E_INPUT:\(summary)")
+        fflush(stdout)
+        if case .text("__RELAND_DISCONNECT__") = event {
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
+                server.disconnectClients()
+            }
+        } else if case .text("__RELAND_DELAYED_DISCONNECT__") = event {
+            DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
+                if let delayedReconnect {
+                    delayedReconnect.pause()
+                } else {
+                    server.stop()
+                    DispatchQueue.global().asyncAfter(
+                        deadline: .now() + 1.5
+                    ) {
+                        server.start(configuration: configuration)
+                    }
+                }
             }
         }
     }
 }
 
-server.start(configuration: configuration)
+private func fixturePort(after port: UInt16, offset: UInt16) throws -> UInt16 {
+    guard port <= UInt16.max - offset else {
+        throw RemoteCaptureTargetSourceError.message(
+            "The E2E port leaves no port for a companion fixture."
+        )
+    }
+    return port + offset
+}
 
-dispatchMain()
+private final class DesktopOnlyFrameSource: RemoteFrameSource {
+    private let source = SyntheticJPEGFrameSource(
+        width: 960, height: 540, fps: 10
+    )
+
+    var displayInformation: DisplayInformation {
+        source.displayInformation
+    }
+
+    func start(
+        frameHandler: @escaping @Sendable (Data) -> Void,
+        errorHandler: @escaping @Sendable (Error) -> Void
+    ) {
+        source.start(frameHandler: frameHandler, errorHandler: errorHandler)
+    }
+
+    func stop() {
+        source.stop()
+    }
+}
 
 private func makeTerminalService() throws -> any RemoteTerminalService {
     if ProcessInfo.processInfo.environment[

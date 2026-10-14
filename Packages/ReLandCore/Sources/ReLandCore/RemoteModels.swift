@@ -32,6 +32,20 @@ public struct ProtocolVersionRange:
     }
 }
 
+public enum RemoteHostPlatform: String, Codable, Sendable {
+    case macOS
+    case windows
+
+    public var displayName: String {
+        switch self {
+        case .macOS:
+            "Mac"
+        case .windows:
+            "Windows PC"
+        }
+    }
+}
+
 public enum RemoteCapability:
     String,
     Codable,
@@ -99,10 +113,37 @@ public struct PairDeviceRequest: Codable, Equatable, Sendable {
 public struct PairDeviceAccepted: Codable, Equatable, Sendable {
     public let hostID: String
     public let hostName: String
+    public let hostPlatform: RemoteHostPlatform
+    public let capabilities: Set<RemoteCapability>?
 
-    public init(hostID: String, hostName: String) {
+    public init(
+        hostID: String,
+        hostName: String,
+        hostPlatform: RemoteHostPlatform = .macOS,
+        capabilities: Set<RemoteCapability>? = nil
+    ) {
         self.hostID = hostID
         self.hostName = hostName
+        self.hostPlatform = hostPlatform
+        self.capabilities = capabilities
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case hostID, hostName, hostPlatform, capabilities
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        hostID = try container.decode(String.self, forKey: .hostID)
+        hostName = try container.decode(String.self, forKey: .hostName)
+        hostPlatform = try container.decodeIfPresent(
+            RemoteHostPlatform.self,
+            forKey: .hostPlatform
+        ) ?? .macOS
+        capabilities = try container.decodeIfPresent(
+            Set<RemoteCapability>.self,
+            forKey: .capabilities
+        )
     }
 }
 
@@ -111,17 +152,37 @@ public struct SessionReady: Codable, Equatable, Sendable {
     public let protocolVersion: UInt16
     public let capabilities: Set<RemoteCapability>
     public let hostPermissions: HostPermissionState
+    public let hostPlatform: RemoteHostPlatform
 
     public init(
         sessionID: String,
         protocolVersion: UInt16,
         capabilities: Set<RemoteCapability>,
-        hostPermissions: HostPermissionState = .granted
+        hostPermissions: HostPermissionState = .granted,
+        hostPlatform: RemoteHostPlatform = .macOS
     ) {
         self.sessionID = sessionID
         self.protocolVersion = protocolVersion
         self.capabilities = capabilities
         self.hostPermissions = hostPermissions
+        self.hostPlatform = hostPlatform
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case sessionID, protocolVersion, capabilities
+        case hostPermissions, hostPlatform
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sessionID = try container.decode(String.self, forKey: .sessionID)
+        protocolVersion = try container.decode(UInt16.self, forKey: .protocolVersion)
+        capabilities = try container.decode(Set<RemoteCapability>.self, forKey: .capabilities)
+        hostPermissions = try container.decode(HostPermissionState.self, forKey: .hostPermissions)
+        hostPlatform = try container.decodeIfPresent(
+            RemoteHostPlatform.self,
+            forKey: .hostPlatform
+        ) ?? .macOS
     }
 }
 
@@ -158,6 +219,8 @@ public struct RemoteDevice: Codable, Equatable, Identifiable, Sendable {
     public var address: String
     public var port: UInt16
     public let credentialID: String
+    public var hostPlatform: RemoteHostPlatform
+    public var capabilities: Set<RemoteCapability>?
 
     public init(
         id: String = UUID().uuidString.lowercased(),
@@ -165,7 +228,9 @@ public struct RemoteDevice: Codable, Equatable, Identifiable, Sendable {
         name: String,
         address: String,
         port: UInt16,
-        credentialID: String
+        credentialID: String,
+        hostPlatform: RemoteHostPlatform = .macOS,
+        capabilities: Set<RemoteCapability>? = nil
     ) {
         self.id = id
         self.hostID = hostID
@@ -173,6 +238,44 @@ public struct RemoteDevice: Codable, Equatable, Identifiable, Sendable {
         self.address = address
         self.port = port
         self.credentialID = credentialID
+        self.hostPlatform = hostPlatform
+        self.capabilities = capabilities
+    }
+
+    public func supports(_ capability: RemoteCapability) -> Bool {
+        if let capabilities {
+            return capabilities.contains(capability)
+        }
+        if hostPlatform == .windows {
+            let desktopCapabilities: Set<RemoteCapability> = [
+                .screen, .input, .hostStatus,
+            ]
+            return desktopCapabilities.contains(capability)
+        }
+        return true
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, hostID, name, address, port, credentialID
+        case hostPlatform, capabilities
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        hostID = try container.decode(String.self, forKey: .hostID)
+        name = try container.decode(String.self, forKey: .name)
+        address = try container.decode(String.self, forKey: .address)
+        port = try container.decode(UInt16.self, forKey: .port)
+        credentialID = try container.decode(String.self, forKey: .credentialID)
+        hostPlatform = try container.decodeIfPresent(
+            RemoteHostPlatform.self,
+            forKey: .hostPlatform
+        ) ?? .macOS
+        capabilities = try container.decodeIfPresent(
+            Set<RemoteCapability>.self,
+            forKey: .capabilities
+        )
     }
 }
 

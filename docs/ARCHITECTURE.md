@@ -25,6 +25,45 @@ ReLandHostCore -> ReLandCore
 
 Shared code must not depend on app targets.
 
+## Windows host preview
+
+```text
+ReLand client
+  -> the same protocol 7/8 and one-time QR pairing
+  -> private LAN or Tailscale
+  -> ReLand Windows Host (.NET / Windows Forms)
+       -> ReLandWindowsCore
+            -> Bouncy Castle TLS-PSK and HMAC-SHA256 authentication
+            -> one authenticated controller, lease, and consented takeover
+       -> Windows GDI primary-screen capture / bounded JPEG encoding
+       -> Win32 SendInput (mouse, Unicode text, translated key codes)
+       -> current-user DPAPI credential store
+```
+
+The Windows host advertises only `screen`, `input`, and `hostStatus`. The client
+persists the host platform and capability snapshot after pairing/negotiation,
+and hides unavailable app, terminal, and file actions. Missing metadata on
+existing Mac peers and saved devices preserves their previous behavior.
+
+Windows key events retain the protocol's macOS virtual key codes. The Windows
+input adapter translates them and maps Command to the Windows key and Option
+to Alt. Text uses Unicode input, not clipboard replacement. Injected keys and
+mouse buttons are tracked and released on disconnect/takeover; releases
+blocked by the secure desktop are retried after local unlock.
+
+The listener binds one explicitly selected private address and rejects public
+peers before TLS. Pending handshakes and commands have bounded sizes, connection
+counts, and deadlines. Pairing credentials remain in memory, expire after ten
+minutes even if the wall clock moves backward, and are consumed only after the
+new device credential is durably protected. The host window is excluded from
+capture, and generating a new pairing code is forbidden while a controller is
+active.
+
+Windows currently has no app-window selection, terminal, artifact, or file
+service. It does not elevate itself, bypass system prompts, or install public
+firewall rules. See [Windows host setup](WINDOWS_HOST.md) for build and review
+requirements.
+
 ## Persistence
 
 App state depends on `SettingsStoring` and `CredentialStoring`, with
