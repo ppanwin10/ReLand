@@ -30,7 +30,7 @@ final class DelayedReconnectFixture: @unchecked Sendable {
             host: "127.0.0.1",
             port: port
         )
-        listener = try NWListener(using: parameters, on: port)
+        listener = try NWListener(using: parameters)
     }
 
     func start() {
