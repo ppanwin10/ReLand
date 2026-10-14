@@ -2039,6 +2039,8 @@ final class ClientAppModel {
         case .connecting:
             connectionState = .connecting
         case .authenticating:
+            reconnectTask?.cancel()
+            reconnectTask = nil
             connectionState = .authenticating
         case .pairing:
             connectionState = .pairing
