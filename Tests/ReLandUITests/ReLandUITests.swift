@@ -469,7 +469,6 @@ final class ReLandUITests: XCTestCase {
         )
         let focusedTerminal = app.textViews.firstMatch
         XCTAssertTrue(focusedTerminal.waitForExistence(timeout: 5))
-        focusedTerminal.tap()
         focusedTerminal.typeText("hello-terminal")
 
         XCTAssertTrue(
